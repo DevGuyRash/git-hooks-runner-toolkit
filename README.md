@@ -54,22 +54,10 @@ P2:::focus -->|"runs"| OUT2["Action(s)"]
 
 > Run all commands from your **project’s repo root**. The official repository URL is `https://github.com/DevGuyRash/git-hooks-runner-toolkit.git`.
 
-**Clone + rsync (recommended):**
+**Clone the toolkit:**
 
 ```bash
-# In a temp directory outside your project
-git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git hooks-toolkit
-
-# Back in your project repo root
-rsync -a --exclude '.git' hooks-toolkit/ git-hooks/
-```
-
-**Clone + cp (simple copy):**
-
-```bash
-git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git hooks-toolkit
-cp -R hooks-toolkit git-hooks
-rm -rf git-hooks/.git
+git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git git-hooks && rm -rf git-hooks/.git
 ```
 
 > The toolkit now lives at **`git-hooks/`** in your repo root. The installer and runner are path-agnostic after this step.
