@@ -277,7 +277,7 @@ Environment:
 
 ### 4) Secrets encryption enforcement — `git-crypt-enforce.sh`
 
-Guards against leaking secrets by refusing commits that stage plaintext for paths covered by `git-crypt`; it inspects the staged blob to ensure encrypted content contains the ` GITCRYPT ` sentinel before allowing the commit.
+Guards against leaking secrets by refusing commits that stage plaintext for paths covered by `git-crypt`; it inspects the staged blob to ensure encrypted content contains the `\0GITCRYPT\0` sentinel before allowing the commit.
 
 **Enable by copy:**
 
@@ -296,7 +296,7 @@ ln -s "$(pwd)/git-hooks/examples/git-crypt-enforce.sh" .githooks/pre-commit.d/40
 
 Behaviour and configuration:
 
-- Fails if files marked with `filter=git-crypt*` would be committed without the ` GITCRYPT ` header.
+- Fails if files marked with `filter=git-crypt*` would be committed without the `\0GITCRYPT\0` header.
 - Rejects mixed commits that touch `.gitattributes` alongside other paths (override once with `GITCRYPT_ALLOW_MIXED_GITATTRIBUTES=1`).
 - Optional helpers:
   - `GITCRYPT_AUTO_FIX=1` runs `git-crypt status -f` once to restage encrypted blobs automatically.
