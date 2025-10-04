@@ -121,11 +121,15 @@ Now, whenever you make a commit, this script will run automatically.
 
 The installer can automatically "stage" hook parts for you. This means it will copy executable scripts from a source directory to the correct `.githooks/<hook>.d/` directory.
 
-To do this, you need to add a special comment to your script to tell the installer which hook it belongs to. For example:
+There are two ways to tell the installer which hook a script belongs to:
 
-```bash
-# githooks-stage: pre-commit, post-merge
-```
+1. **Metadata Comment:** Add a special comment to your script to specify the target hook(s). You can specify multiple hooks by separating them with commas.
+
+    ```bash
+    # githooks-stage: pre-commit, post-merge
+    ```
+
+2. **Directory Structure:** Place your script in a directory named after the hook. For example, a script placed in `hooks/pre-commit/` will be automatically associated with the `pre-commit` hook.
 
 Then, you can run the installer with the `--stage-source` flag:
 
@@ -179,8 +183,8 @@ The `install.sh` script provides several flags to customize its behavior:
 | `-A`, `--all-hooks` | Manage every Git-documented hook. |
 | `-s`, `--stage SELECTORS` | Legacy stage selector syntax. |
 | `--stage-source DIR` | Add a staging source directory. |
-| `--stage-hook HOOKS` | Filter target hook names for staging. |
-| `--stage-name NAMES` | Filter candidate filenames for staging. |
+| `--stage-hook HOOKS` | Filter target hook names for staging. Accepts a comma-separated list. |
+| `--stage-name NAMES` | Filter candidate filenames for staging. Accepts a comma-separated list. |
 | `--stage-order STRAT` | Control the order of the staging plan (`source`, `hook`, or `name`). |
 | `-M`, `--stage-summary` | Print the staging plan before copying. |
 | `-n`, `--dry-run` | Print planned actions without touching the filesystem. |
