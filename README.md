@@ -1,6 +1,6 @@
 # Git Hooks Runner Toolkit
 
-## Tired of managing Git hooks? We've got you covered.
+## Tired of managing Git hooks? We've got you covered
 
 This toolkit provides a simple, yet powerful, way to manage your Git hooks. It's designed to be composable, version-controlled, and easy to maintain. Stop letting your Git automation live in scattered shell scripts and start treating it like the code it is.
 
@@ -22,15 +22,15 @@ When you install the toolkit, it creates a small "stub" file for each hook you w
 
 The shared runner then takes over and does the following:
 
-1.  It determines which hook is being run (e.g., `pre-commit`, `post-merge`, etc.).
-2.  It looks for a corresponding directory in `.githooks` (e.g., `.githooks/pre-commit.d`).
-3.  It executes all the executable scripts it finds in that directory, in lexical order.
+1. It determines which hook is being run (e.g., `pre-commit`, `post-merge`, etc.).
+2. It looks for a corresponding directory in `.githooks` (e.g., `.githooks/pre-commit.d`).
+3. It executes all the executable scripts it finds in that directory, in lexical order.
 
 This approach has several advantages:
 
--   **Your `.git/hooks` directory stays clean**: You only have a small stub file for each hook, instead of a large, monolithic script.
--   **Your hooks are version-controlled**: The actual hook logic lives in the `.githooks` directory, which is part of your repository.
--   **Your hooks are composable**: You can easily add, remove, or reorder hook parts without having to modify a single, large script.
+- **Your `.git/hooks` directory stays clean**: You only have a small stub file for each hook, instead of a large, monolithic script.
+- **Your hooks are version-controlled**: The actual hook logic lives in the `.githooks` directory, which is part of your repository.
+- **Your hooks are composable**: You can easily add, remove, or reorder hook parts without having to modify a single, large script.
 
 Here is a diagram that illustrates the process:
 
@@ -124,7 +124,7 @@ The installer can automatically "stage" hook parts for you. This means it will c
 To do this, you need to add a special comment to your script to tell the installer which hook it belongs to. For example:
 
 ```bash
-# githooks-stage: pre-commit
+# githooks-stage: pre-commit, post-merge
 ```
 
 Then, you can run the installer with the `--stage-source` flag:
@@ -138,6 +138,36 @@ You can also stage the included examples:
 ```bash
 .githooks/install.sh --stage-source examples
 ```
+
+### Creating and Installing Your Own Hooks
+
+You can easily create and install your own custom hooks. The recommended way to do this is to place your hook scripts in the `hooks/` directory, and then use the `--stage-source hooks` flag to install them.
+
+For example, let's say you want to create a `pre-push` hook that runs your test suite. You would create a file named `hooks/pre-push/10-run-tests.sh` with the following content:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# githooks-stage: pre-push
+
+echo "Running tests..."
+npm test
+```
+
+Then, you would make the script executable:
+
+```bash
+chmod +x hooks/pre-push/10-run-tests.sh
+```
+
+Finally, you would run the installer with the `--stage-source hooks` flag:
+
+```bash
+.githooks/install.sh --stage-source hooks
+```
+
+This will copy your script to `.githooks/pre-push.d/10-run-tests.sh`, and it will be executed automatically before every push.
 
 ### Available Flags
 
