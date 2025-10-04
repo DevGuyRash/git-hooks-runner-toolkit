@@ -1,5 +1,6 @@
 #!/bin/sh
-# Example hook part: execute configured commands when matching files change.
+# githooks-stage: post-merge
+# Example hook part: evaluate changed paths against YAML/JSON config and run actions.
 # Supports YAML or JSON configuration (via yq/jq) and inline shell-defined rules.
 
 set -eu

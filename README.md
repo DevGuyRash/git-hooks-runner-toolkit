@@ -85,6 +85,40 @@ What you get:
 
 > Re-run the installer any time. Use `--dry-run` to preview changes, `--force` to overwrite existing stubs.
 
+## Stage toolkit parts without manual copying
+
+`git-hooks/install.sh --stage` populates `.githooks/<hook>.d/` directly from curated sources. By default it scans the toolkit’s `examples/` and `hooks/` directories, copies executable `*.sh` files, and ensures the shared runner plus stubs exist for every targeted hook.
+
+```bash
+# stage everything from examples/ and hooks/
+git-hooks/install.sh --stage
+
+# stage only example pre-commit parts
+git-hooks/install.sh --stage=examples --hooks pre-commit
+
+# stage a single file by hook + name selector
+git-hooks/install.sh --stage=hook:post-merge,name:20-dependency-sync.sh
+
+# stage from an additional directory under scripts/custom-hooks
+git-hooks/install.sh --stage=source:scripts/custom-hooks,hook:pre-push
+```
+
+- Combine selectors with commas; available forms are `all`, `examples`, `hooks`, `source:<dir>`, `hook:<name>`, `name:<file>`, or bare hook names (e.g., `pre-commit`).
+- `--hooks` / `--all-hooks` continue to constrain the managed hook set and act as additional filters during staging.
+- `--dry-run` prints the planned copy/update operations; `--force` overwrites unmanaged stubs and identical files.
+
+### Declaring targets inside scripts
+
+- Add a comment like `# githooks-stage: pre-commit,post-merge` near the top of a script to explicitly list the hooks it should be staged into.
+- If the comment is absent, directory names such as `hooks/pre-commit/` or `hooks/pre-commit.d/` are used to infer hook targets.
+- When neither metadata nor directories provide a hook and you passed `--hooks`, the fallback installs into those hooks; otherwise the file is skipped with a warning.
+
+### Custom templates
+
+- The repository now ships a `hooks/` directory containing lightweight templates you can adapt to your project.
+- Populate this folder (or your own directory referenced via `source:`) with executable `*.sh` files; `--stage` copies them into `.githooks/<hook>.d/`.
+- Scripts can still be symlinked into multiple directories; metadata comments take precedence when both are present.
+
 ---
 
 ## Add your first automation (two minutes)
@@ -113,32 +147,28 @@ Commit something—your part will run automatically.
 
 ## Shipping the provided example parts (root-first)
 
-These examples live in **`git-hooks/examples/`**. Enable an example by placing it into `.githooks/<hook>.d/` so the runner executes it when the hook fires. You can **copy** (simplest) or **symlink** using an **absolute path** (no relative `../..`).
+These examples live in **`git-hooks/examples/`**. Each script now declares its target hooks via `# githooks-stage:` metadata, so a single staging command installs them without manual copying:
+
+```bash
+# install every example script into its declared hooks
+git-hooks/install.sh --stage=examples
+```
+
+Want a narrower set? Combine selectors to filter by script name and/or hook:
+
+```bash
+# install only the dependency sync helper
+git-hooks/install.sh --stage=examples,name:dependency-sync.sh
+
+# install only example pre-commit hooks
+git-hooks/install.sh --stage=examples,hook:pre-commit
+```
 
 ### 1) Dependency manifest sync — `dependency-sync.sh`
 
 Scans for dependency manifest changes (Node, Bun, Composer, Python, Go, Rust, Ruby, Elixir, uv, etc.) and invokes the matching installer so collaborators stay in sync without remembering manual steps.
 
-**Enable by copy (recommended):**
-
-```bash
-mkdir -p .githooks/post-merge.d .githooks/post-rewrite.d .githooks/post-checkout.d .githooks/post-commit.d
-cp git-hooks/examples/dependency-sync.sh .githooks/post-merge.d/20-dependency-sync.sh
-cp git-hooks/examples/dependency-sync.sh .githooks/post-rewrite.d/20-dependency-sync.sh
-cp git-hooks/examples/dependency-sync.sh .githooks/post-checkout.d/20-dependency-sync.sh
-cp git-hooks/examples/dependency-sync.sh .githooks/post-commit.d/20-dependency-sync.sh
-chmod +x .githooks/post-*/20-dependency-sync.sh
-```
-
-**Or symlink with an absolute path (no `../..`):**
-
-```bash
-mkdir -p .githooks/post-merge.d .githooks/post-rewrite.d .githooks/post-checkout.d .githooks/post-commit.d
-ln -s "$(pwd)/git-hooks/examples/dependency-sync.sh" .githooks/post-merge.d/20-dependency-sync.sh
-ln -s "$(pwd)/git-hooks/examples/dependency-sync.sh" .githooks/post-rewrite.d/20-dependency-sync.sh
-ln -s "$(pwd)/git-hooks/examples/dependency-sync.sh" .githooks/post-checkout.d/20-dependency-sync.sh
-ln -s "$(pwd)/git-hooks/examples/dependency-sync.sh" .githooks/post-commit.d/20-dependency-sync.sh
-```
+**Stage it:** `git-hooks/install.sh --stage=examples,name:dependency-sync.sh`
 
 **Built-in mappings (what it reacts to):**
 
@@ -170,20 +200,7 @@ Notes:
 
 Evaluates changed paths against a YAML or JSON configuration so you can run custom command sets for overlapping file globs (supports `*` and recursive `**`). Each rule can run multiple commands and opt into `continue_on_error` semantics so failures either stop the hook or are logged while the hook continues.
 
-**Enable by copy (recommended):**
-
-```bash
-mkdir -p .githooks/post-merge.d
-cp git-hooks/examples/watch-configured-actions.sh .githooks/post-merge.d/40-watch-configured-actions.sh
-chmod +x .githooks/post-merge.d/40-watch-configured-actions.sh
-```
-
-**Or symlink with an absolute path:**
-
-```bash
-mkdir -p .githooks/post-merge.d
-ln -s "$(pwd)/git-hooks/examples/watch-configured-actions.sh" .githooks/post-merge.d/40-watch-configured-actions.sh
-```
+**Stage it:** `git-hooks/install.sh --stage=examples,name:watch-configured-actions.sh`
 
 Place a config at `.githooks/watch-config.yaml` (or `.yml` / `.json`) or point `GITHOOKS_WATCH_CONFIG` to your chosen path. Example YAML:
 
@@ -248,24 +265,7 @@ Ports of interest:
 
 Restores permissions, ownership, and extended attributes recorded by [`metastore`](https://github.com/prashanths/metastore) so executable or special files remain consistent after merges and checkouts.
 
-**Enable by copy:**
-
-```bash
-mkdir -p .githooks/post-merge.d .githooks/post-rewrite.d .githooks/post-checkout.d
-cp git-hooks/examples/metadata-apply.sh .githooks/post-merge.d/30-metadata-apply.sh
-cp git-hooks/examples/metadata-apply.sh .githooks/post-rewrite.d/30-metadata-apply.sh
-cp git-hooks/examples/metadata-apply.sh .githooks/post-checkout.d/30-metadata-apply.sh
-chmod +x .githooks/post-merge.d/30-metadata-apply.sh .githooks/post-rewrite.d/30-metadata-apply.sh .githooks/post-checkout.d/30-metadata-apply.sh
-```
-
-**Or symlink with an absolute path:**
-
-```bash
-mkdir -p .githooks/post-merge.d .githooks/post-rewrite.d .githooks/post-checkout.d
-ln -s "$(pwd)/git-hooks/examples/metadata-apply.sh" .githooks/post-merge.d/30-metadata-apply.sh
-ln -s "$(pwd)/git-hooks/examples/metadata-apply.sh" .githooks/post-rewrite.d/30-metadata-apply.sh
-ln -s "$(pwd)/git-hooks/examples/metadata-apply.sh" .githooks/post-checkout.d/30-metadata-apply.sh
-```
+**Stage it:** `git-hooks/install.sh --stage=examples,name:metadata-apply.sh`
 
 Environment:
 
@@ -279,20 +279,7 @@ Environment:
 
 Guards against leaking secrets by refusing commits that stage plaintext for paths covered by `git-crypt`; it inspects the staged blob to ensure encrypted content contains the `\0GITCRYPT\0` sentinel before allowing the commit.
 
-**Enable by copy:**
-
-```bash
-mkdir -p .githooks/pre-commit.d
-cp git-hooks/examples/git-crypt-enforce.sh .githooks/pre-commit.d/40-git-crypt-enforce.sh
-chmod +x .githooks/pre-commit.d/40-git-crypt-enforce.sh
-```
-
-**Or symlink with an absolute path:**
-
-```bash
-mkdir -p .githooks/pre-commit.d
-ln -s "$(pwd)/git-hooks/examples/git-crypt-enforce.sh" .githooks/pre-commit.d/40-git-crypt-enforce.sh
-```
+**Stage it:** `git-hooks/install.sh --stage=examples,name:git-crypt-enforce.sh`
 
 Behaviour and configuration:
 

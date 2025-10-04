@@ -1,4 +1,5 @@
 #!/bin/sh
+# githooks-stage: pre-commit
 # Example hook part: enforce git-crypt encryption on pre-commit.
 
 set -eu

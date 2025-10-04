@@ -1,4 +1,5 @@
 #!/bin/sh
+# githooks-stage: post-merge post-rewrite post-checkout post-commit
 # Example hook part: detect dependency file changes and run matching installers.
 # Intended for post-merge/post-rewrite/post-checkout hooks under the shared runner.
 

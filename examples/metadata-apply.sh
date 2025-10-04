@@ -1,5 +1,6 @@
 #!/bin/sh
-# Example hook part: apply metastore metadata manifests on post-update hooks.
+# githooks-stage: post-merge post-rewrite post-checkout
+# Example hook part: apply filesystem metadata recorded by metastore.
 
 set -eu
 
