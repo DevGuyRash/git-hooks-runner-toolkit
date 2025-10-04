@@ -14,56 +14,121 @@ fi
 
 print_usage() {
   cat <<'HELP'
-Usage: scripts/git-hooks/install.sh [options]
+NAME
+    install.sh - Install, update, or remove the Git Hooks Runner Toolkit.
 
-Provision, update, or remove the git-hooks-runner toolkit in the
-current repository. By default a curated set of client-side hooks are
-installed under `.githooks/` and wired into `.git/hooks/` stubs that
-delegate to the shared runner.
+SYNOPSIS
+    install.sh [OPTIONS]
 
-Common installs:
-  scripts/git-hooks/install.sh
-  scripts/git-hooks/install.sh --hooks post-merge,post-rewrite
-  scripts/git-hooks/install.sh --uninstall --hooks post-merge
+DESCRIPTION
+    This script manages the installation and configuration of the Git Hooks Runner
+    Toolkit in your repository. It creates a shared runner, a library of helper
+    functions, and stub dispatchers for the hooks you want to manage.
 
-Stage quick starts:
-  scripts/git-hooks/install.sh --stage-source examples
-  scripts/git-hooks/install.sh --stage-source examples --stage-hook post-merge
-  scripts/git-hooks/install.sh --stage-source examples --stage-name dependency-sync.sh
-  scripts/git-hooks/install.sh --stage-source hooks --stage-order hook --stage-summary
+    The toolkit allows you to create composable, version-controlled Git hooks that
+    are easy to maintain. Instead of a single, monolithic hook script, you can
+    have multiple "hook parts" that are executed in lexical order.
 
-Post-install verification (recommended):
-  sh scripts/git-hooks/tests/test_git_hooks_runner.sh
+OPTIONS
+    -H, --hooks HOOKS
+        A comma-separated list of hook names to manage. If this option is not
+        provided, a default set of client-side hooks will be installed.
 
-Rollback:
-  scripts/git-hooks/install.sh --uninstall
-  # restores Git's default hooks for managed entries
+        Example:
+            install.sh --hooks pre-commit,post-merge
 
-Options:
-  -H, --hooks HOOKS       Comma/space list of hook names to manage (defaults below).
-  -A, --all-hooks         Manage every Git-documented hook (client + server).
-  -s SELECTORS            Legacy stage selector syntax (comma list, kept for compat).
-      --stage[=SELECTORS] Same legacy staging selector (defaults to "all").
-  -S DIR, --stage-source DIR   Add a staging source (path, "examples", or "hooks").
-  -G HOOKS, --stage-hook HOOKS Filter target hook names (accepts CSV or repeat usage).
-  -N NAMES, --stage-name NAMES Filter candidate filenames (accepts CSV or repeat usage).
-      --stage-order STRAT   Control plan ordering: source (default), hook, or name.
-  -M, --stage-summary[=BOOL]  Emit the staging plan before copying (set 0 to disable).
-  -n, --dry-run            Print planned actions without touching the filesystem.
-  -f, --force              Overwrite existing stubs even if they already exist.
-  -u, --uninstall          Remove runner artefacts and managed stubs instead of installing.
-  -h, --help               Show this help message.
+    -A, --all-hooks
+        Manage every hook that Git documents, including both client-side and
+        server-side hooks.
 
-Notes:
-  - Default hooks: post-merge, post-rewrite, post-checkout, pre-commit,
-    prepare-commit-msg, commit-msg, post-commit, pre-push.
-  - Stage order determines how the plan is sorted before execution;
-    "source" groups by origin directory, "hook" groups by hook name, and
-    "name" sorts alphabetically by filename.
-  - Managed stubs include an audit string so unrelated hooks are left untouched.
-  - Parts live in `.githooks/<hook>.d/`; add scripts there to compose behaviour.
-  - Add `# githooks-stage: <hook> [...]` to a part so staging can place it.
-  - For automated environments, run in `--dry-run` first to review planned changes.
+    --stage-source DIR
+        Add a staging source directory. The installer will scan this directory
+        for executable scripts and copy them to the appropriate hook parts
+        directory. The special keywords "examples" and "hooks" can be used to
+        refer to the bundled examples and hooks.
+
+        Example:
+            install.sh --stage-source path/to/my/scripts
+            install.sh --stage-source examples
+
+    --stage-hook HOOKS
+        Filter the hooks that will be staged. This is useful when you only
+        want to stage a subset of the hooks from a source directory.
+
+        Example:
+            install.sh --stage-source examples --stage-hook pre-commit
+
+    --stage-name NAMES
+        Filter the scripts that will be staged by their filename. This is
+        useful when you only want to stage a specific script.
+
+        Example:
+            install.sh --stage-source examples --stage-name dependency-sync.sh
+
+    --stage-order STRATEGY
+        Control the order in which the staging plan is executed. The available
+        strategies are:
+
+        - source: Group by the origin directory (default).
+        - hook: Group by the hook name.
+        - name: Sort alphabetically by filename.
+
+    -M, --stage-summary
+        Print the staging plan before copying the files. This is implied when
+        using --dry-run.
+
+    -n, --dry-run
+        Print the planned actions without actually touching the filesystem.
+        This is useful for testing and debugging.
+
+    -f, --force
+        Overwrite existing hook stubs, even if they were not created by this
+        toolkit.
+
+    -u, --uninstall
+        Remove the runner artifacts and any managed hook stubs.
+
+    -h, --help
+        Show this help message.
+
+EXAMPLES
+    Install the default set of hooks:
+        install.sh
+
+    Install only the pre-commit and post-merge hooks:
+        install.sh --hooks pre-commit,post-merge
+
+    Stage all the included examples:
+        install.sh --stage-source examples
+
+    Stage only the dependency-sync.sh example for the post-merge hook:
+        install.sh --stage-source examples --stage-hook post-merge --stage-name dependency-sync.sh
+
+    Preview the staging plan for the examples without actually copying any files:
+        install.sh --stage-source examples --dry-run
+
+    Uninstall all managed hooks:
+        install.sh --uninstall
+
+FILES
+    .githooks/
+        The directory where the shared runner, library, and hook parts are
+        stored.
+
+    .githooks/_runner.sh
+        The shared hook runner.
+
+    .githooks/lib/common.sh
+        A library of shared helper functions.
+
+    .githooks/<hook>.d/
+        The directory where the hook parts for a specific hook are stored.
+
+    .git/hooks/<hook>
+        The hook stub that delegates to the shared runner.
+
+SEE ALSO
+    githooks(1)
 HELP
 }
 
