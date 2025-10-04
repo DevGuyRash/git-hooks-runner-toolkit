@@ -21,12 +21,16 @@ current repository. By default a curated set of client-side hooks are
 installed under `.githooks/` and wired into `.git/hooks/` stubs that
 delegate to the shared runner.
 
-Common flows:
+Common installs:
   scripts/git-hooks/install.sh
   scripts/git-hooks/install.sh --hooks post-merge,post-rewrite
   scripts/git-hooks/install.sh --uninstall --hooks post-merge
-  scripts/git-hooks/install.sh --stage
-  scripts/git-hooks/install.sh --stage=examples --hooks pre-commit
+
+Stage quick starts:
+  scripts/git-hooks/install.sh --stage-source examples
+  scripts/git-hooks/install.sh --stage-source examples --stage-hook post-merge
+  scripts/git-hooks/install.sh --stage-source examples --stage-name dependency-sync.sh
+  scripts/git-hooks/install.sh --stage-source hooks --stage-order hook --stage-summary
 
 Post-install verification (recommended):
   sh scripts/git-hooks/tests/test_git_hooks_runner.sh
@@ -36,22 +40,30 @@ Rollback:
   # restores Git's default hooks for managed entries
 
 Options:
-  --hooks HOOK1,HOOK2   Comma-separated hook names to manage (defaults below).
-  --all-hooks           Manage every hook Git documents (client + server).
-  --stage[=SELECTORS]   Stage hook parts from toolkit directories into .githooks/.
-  --dry-run             Print planned actions without touching the filesystem.
-  --force               Overwrite existing hook stubs even if they already exist.
-  --uninstall           Remove runner artefacts and managed stubs instead of installing.
-  -h, --help            Show this help message.
+  -H, --hooks HOOKS       Comma/space list of hook names to manage (defaults below).
+  -A, --all-hooks         Manage every Git-documented hook (client + server).
+  -s SELECTORS            Legacy stage selector syntax (comma list, kept for compat).
+      --stage[=SELECTORS] Same legacy staging selector (defaults to "all").
+  -S DIR, --stage-source DIR   Add a staging source (path, "examples", or "hooks").
+  -G HOOKS, --stage-hook HOOKS Filter target hook names (accepts CSV or repeat usage).
+  -N NAMES, --stage-name NAMES Filter candidate filenames (accepts CSV or repeat usage).
+      --stage-order STRAT   Control plan ordering: source (default), hook, or name.
+  -M, --stage-summary[=BOOL]  Emit the staging plan before copying (set 0 to disable).
+  -n, --dry-run            Print planned actions without touching the filesystem.
+  -f, --force              Overwrite existing stubs even if they already exist.
+  -u, --uninstall          Remove runner artefacts and managed stubs instead of installing.
+  -h, --help               Show this help message.
 
 Notes:
   - Default hooks: post-merge, post-rewrite, post-checkout, pre-commit,
     prepare-commit-msg, commit-msg, post-commit, pre-push.
+  - Stage order determines how the plan is sorted before execution;
+    "source" groups by origin directory, "hook" groups by hook name, and
+    "name" sorts alphabetically by filename.
   - Managed stubs include an audit string so unrelated hooks are left untouched.
   - Parts live in `.githooks/<hook>.d/`; add scripts there to compose behaviour.
+  - Add `# githooks-stage: <hook> [...]` to a part so staging can place it.
   - For automated environments, run in `--dry-run` first to review planned changes.
-  - `--stage` selectors: `all` (default), `examples`, `hooks`, `source:<dir>`,
-    `hook:<name>`, `name:<file>`, or bare hook names (comma-separated).
 HELP
 }
 

@@ -87,12 +87,26 @@ What you get:
 
 ## Stage toolkit parts without manual copying
 
-The installer can now build a staging plan from explicit selectors—no more ad-hoc copying. The modern flags are additive and order-aware.
+Staging moves executable scripts from a source folder into the correct
+`.githooks/<hook>.d/` directory for you. Mark each script with
+`# githooks-stage: <hook>` (one or many) and let the installer copy it.
+
+### Fastest path
+
+1. Add the metadata comment near the top of your script.
+2. Run `git-hooks/install.sh --stage-source <folder>`.
+3. Optional: add `--stage-summary --dry-run` to preview the plan before it writes anything.
+
+The planner keeps selectors additive: every `--stage-source`,
+`--stage-hook`, and `--stage-name` you pass appends to that filter list.
+Ordering is deterministic—`--stage-order source` (the default) groups by
+the directory you pull from, `--stage-order hook` processes one hook at a
+time, and `--stage-order name` sorts alphabetically by filename.
 
 ### Quick recipes
 
 ```bash
-# pull every example and template (default behaviour)
+# pull every example and template (legacy shorthand)
 git-hooks/install.sh --stage
 
 # stage only the GitCrypt enforcement sample
@@ -121,12 +135,12 @@ Selectors are merged in the order you supply them. `--stage-source` defines wher
 
 | Option | Short | Description |
 | --- | --- | --- |
-| `--stage-source <dir>` | `-S` | Add a directory to scan (absolute, `~`, or toolkit-relative). Keywords `examples` and `hooks` expand to the bundled folders. |
-| `--stage-hook <hook>` | `-G` | Limit staging to specific Git hook names. Intersects with `--hooks`/`--all-hooks`. |
-| `--stage-name <file>` | `-N` | Allow only scripts with the given basename. Multiple flags append additional names. |
-| `--stage-order <strategy>` | – | Control plan ordering: `source` (default), `hook`, or `name`. |
-| `--stage-summary` | `-M` | Print plan lines (`PLAN: hook=… name=… source=…`) before execution. Implied by `--dry-run`. |
-| `--stage` | `-s` | Legacy convenience flag (`--stage` 7 `--stage-source examples --stage-source hooks`). Passing values such as `--stage=examples,hook:pre-commit` is still supported but emits a compatibility warning. |
+| `--stage-source <dir>` | `-S` | Add a directory to scan (absolute path, `~`, or toolkit-relative). Keywords `examples` and `hooks` expand to the bundled folders. CSV like `hooks,examples` is accepted. |
+| `--stage-hook <hook>` | `-G` | Limit staging to specific Git hook names. Intersects with `--hooks`/`--all-hooks`. Accepts CSV or repeated flags. |
+| `--stage-name <file>` | `-N` | Allow only scripts with the given basename. Accepts CSV or repeated flags. |
+| `--stage-order <strategy>` | – | Sort the plan by `source` (default), `hook`, or `name` before copying. |
+| `--stage-summary` | `-M` | Print plan lines (`PLAN: hook=… name=… source=…`) before execution. Implied by `--dry-run`; disable with `--stage-summary=0`. |
+| `--stage` | `-s` | Legacy convenience flag (`--stage` ≈ `--stage-source examples --stage-source hooks`). Passing values such as `--stage=examples,hook:pre-commit` still works but raises a compatibility warning. |
 
 Other useful flags carry over:
 
