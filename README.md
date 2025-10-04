@@ -87,37 +87,60 @@ What you get:
 
 ## Stage toolkit parts without manual copying
 
-`git-hooks/install.sh --stage` populates `.githooks/<hook>.d/` directly from curated sources. By default it scans the toolkit’s `examples/` and `hooks/` directories, copies executable `*.sh` files, and ensures the shared runner plus stubs exist for every targeted hook.
+The installer can now build a staging plan from explicit selectors—no more ad-hoc copying. The modern flags are additive and order-aware.
+
+### Quick recipes
 
 ```bash
-# stage everything from examples/ and hooks/
+# pull every example and template (default behaviour)
 git-hooks/install.sh --stage
 
-# stage only example pre-commit parts
-git-hooks/install.sh --stage=examples --hooks pre-commit
+# stage only the GitCrypt enforcement sample
+git-hooks/install.sh --stage-source examples --stage-name git-crypt-enforce.sh
 
-# stage a single file by hook + name selector
-git-hooks/install.sh --stage=hook:post-merge,name:20-dependency-sync.sh
+# stage custom scripts from scripts/hooks/ for post-merge and post-rewrite
+git-hooks/install.sh \
+  --stage-source scripts/hooks \
+  --stage-hook post-merge --stage-hook post-rewrite
 
-# stage from an additional directory under scripts/custom-hooks
-git-hooks/install.sh --stage=source:scripts/custom-hooks,hook:pre-push
+# preview the plan grouped by hook, without touching disk
+git-hooks/install.sh --stage-source examples \
+  --stage-name dependency-sync.sh \
+  --stage-order hook --stage-summary --dry-run
+
+# combine multiple sources; later entries override earlier ones when --force is used
+git-hooks/install.sh \
+  --stage-source examples \
+  --stage-source hooks \
+  --stage-name metadata-apply.sh --stage-name 10-sample-template.sh
 ```
 
-- Combine selectors with commas; available forms are `all`, `examples`, `hooks`, `source:<dir>`, `hook:<name>`, `name:<file>`, or bare hook names (e.g., `pre-commit`).
-- `--hooks` / `--all-hooks` continue to constrain the managed hook set and act as additional filters during staging.
-- `--dry-run` prints the planned copy/update operations; `--force` overwrites unmanaged stubs and identical files.
+Selectors are merged in the order you supply them. `--stage-source` defines where to look, `--stage-hook` constrains which hooks receive copies, and `--stage-name` acts as a basename allow-list. If a selector category is omitted, everything in that category is allowed.
+
+### Fine-grained selector reference
+
+| Option | Short | Description |
+| --- | --- | --- |
+| `--stage-source <dir>` | `-S` | Add a directory to scan (absolute, `~`, or toolkit-relative). Keywords `examples` and `hooks` expand to the bundled folders. |
+| `--stage-hook <hook>` | `-G` | Limit staging to specific Git hook names. Intersects with `--hooks`/`--all-hooks`. |
+| `--stage-name <file>` | `-N` | Allow only scripts with the given basename. Multiple flags append additional names. |
+| `--stage-order <strategy>` | – | Control plan ordering: `source` (default), `hook`, or `name`. |
+| `--stage-summary` | `-M` | Print plan lines (`PLAN: hook=… name=… source=…`) before execution. Implied by `--dry-run`. |
+| `--stage` | `-s` | Legacy convenience flag (`--stage` 7 `--stage-source examples --stage-source hooks`). Passing values such as `--stage=examples,hook:pre-commit` is still supported but emits a compatibility warning. |
+
+Other useful flags carry over:
+
+- `--dry-run` / `-n` prints the planned actions without copying.
+- `--force` / `-f` lets later sources override earlier ones when the same `<hook>/<basename>` destination appears more than once.
+- `--hooks`, `--all-hooks`, and `--uninstall` behave exactly as in install mode.
 
 ### Declaring targets inside scripts
 
-- Add a comment like `# githooks-stage: pre-commit,post-merge` near the top of a script to explicitly list the hooks it should be staged into.
-- If the comment is absent, directory names such as `hooks/pre-commit/` or `hooks/pre-commit.d/` are used to infer hook targets.
-- When neither metadata nor directories provide a hook and you passed `--hooks`, the fallback installs into those hooks; otherwise the file is skipped with a warning.
+Add `# githooks-stage: pre-commit,post-merge` near the top of a script to explicitly declare hook targets. Metadata beats directory heuristics; if metadata is absent we fall back to folder names such as `hooks/pre-commit/` or `hooks/pre-commit.d/`. When neither source hints nor metadata reveal a hook and you invoked `--hooks`, the installer copies into that explicit set; otherwise the file is skipped.
 
-### Custom templates
+### Legacy shorthand
 
-- The repository now ships a `hooks/` directory containing lightweight templates you can adapt to your project.
-- Populate this folder (or your own directory referenced via `source:`) with executable `*.sh` files; `--stage` copies them into `.githooks/<hook>.d/`.
-- Scripts can still be symlinked into multiple directories; metadata comments take precedence when both are present.
+Older comma selectors (e.g. `--stage=examples,hook:pre-commit`) continue to work and now raise a reminder to upgrade. Use `--stage-source`, `--stage-hook`, and `--stage-name` for clearer intent and deterministic ordering.
 
 ---
 
@@ -168,7 +191,14 @@ git-hooks/install.sh --stage=examples,hook:pre-commit
 
 Scans for dependency manifest changes (Node, Bun, Composer, Python, Go, Rust, Ruby, Elixir, uv, etc.) and invokes the matching installer so collaborators stay in sync without remembering manual steps.
 
-**Stage it:** `git-hooks/install.sh --stage=examples,name:dependency-sync.sh`
+**Stage it:**
+
+```bash
+git-hooks/install.sh \
+  --stage-source examples \
+  --stage-name dependency-sync.sh \
+  --stage-order hook --stage-summary
+```
 
 **Built-in mappings (what it reacts to):**
 
@@ -200,7 +230,11 @@ Notes:
 
 Evaluates changed paths against a YAML or JSON configuration so you can run custom command sets for overlapping file globs (supports `*` and recursive `**`). Each rule can run multiple commands and opt into `continue_on_error` semantics so failures either stop the hook or are logged while the hook continues.
 
-**Stage it:** `git-hooks/install.sh --stage=examples,name:watch-configured-actions.sh`
+**Stage it:**
+
+```bash
+git-hooks/install.sh --stage-source examples --stage-name watch-configured-actions.sh -M
+```
 
 Place a config at `.githooks/watch-config.yaml` (or `.yml` / `.json`) or point `GITHOOKS_WATCH_CONFIG` to your chosen path. Example YAML:
 
@@ -265,7 +299,14 @@ Ports of interest:
 
 Restores permissions, ownership, and extended attributes recorded by [`metastore`](https://github.com/prashanths/metastore) so executable or special files remain consistent after merges and checkouts.
 
-**Stage it:** `git-hooks/install.sh --stage=examples,name:metadata-apply.sh`
+**Stage it:**
+
+```bash
+git-hooks/install.sh \
+  --stage-source examples \
+  --stage-name metadata-apply.sh \
+  --stage-order hook
+```
 
 Environment:
 
@@ -279,7 +320,11 @@ Environment:
 
 Guards against leaking secrets by refusing commits that stage plaintext for paths covered by `git-crypt`; it inspects the staged blob to ensure encrypted content contains the `\0GITCRYPT\0` sentinel before allowing the commit.
 
-**Stage it:** `git-hooks/install.sh --stage=examples,name:git-crypt-enforce.sh`
+**Stage it:**
+
+```bash
+git-hooks/install.sh --stage-source examples --stage-name git-crypt-enforce.sh --stage-hook pre-commit
+```
 
 Behaviour and configuration:
 

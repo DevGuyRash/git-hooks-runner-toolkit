@@ -67,17 +67,22 @@ USE_ALL=0
 HOOKS_WERE_EXPLICIT=0
 REQUEST_STAGE=0
 REQUEST_UNINSTALL=0
-STAGE_SELECTOR_RAW=""
 
-STAGE_SOURCE_DIRS=""
-STAGE_HOOK_FILTERS=""
-STAGE_NAME_FILTERS=""
+STAGE_SOURCES_ORDERED=""
+STAGE_HOOK_FILTERS_ORDERED=""
+STAGE_NAME_FILTERS_ORDERED=""
+STAGE_ORDER_STRATEGY="source"
+STAGE_SUMMARY=0
+STAGE_LEGACY_USED=0
 STAGE_RUNNER_READY=0
 STAGE_COPY_COUNT=0
 STAGE_SKIP_IDENTICAL=0
 STAGE_SKIPPED_FILES=0
 STAGE_DETECTED_HOOKS=""
 STAGE_DETECTED_SOURCE="none"
+STAGE_PLAN_FILE=""
+STAGE_PLAN_COUNT=0
+STAGE_PLANNED_DESTS=""
 
 parse_hook_list() {
   if [ "$#" -ne 1 ]; then
@@ -216,7 +221,13 @@ stage_append_unique() {
 stage_list_contains() {
   stage_list=$1
   stage_seek=$2
-  for stage_item in ${stage_list}; do
+  stage_saved_ifs=$IFS
+  IFS=$' \t\n'
+  set -f
+  set -- ${stage_list}
+  set +f
+  IFS=${stage_saved_ifs}
+  for stage_item in "$@"; do
     if [ "${stage_item}" = "${stage_seek}" ]; then
       return 0
     fi
@@ -244,75 +255,297 @@ stage_resolve_source_dir() {
   esac
 }
 
-parse_stage_selectors() {
-  STAGE_SOURCE_DIRS=""
-  STAGE_HOOK_FILTERS=""
-  STAGE_NAME_FILTERS=""
-  stage_include_examples=0
-  stage_include_hooks=0
-  stage_raw=${STAGE_SELECTOR_RAW}
-  if [ -z "${stage_raw}" ]; then
-    stage_raw="all"
+stage_append_ordered() {
+  stage_var=$1
+  stage_value=$2
+  if [ -z "${stage_value}" ]; then
+    return 0
+  fi
+  eval "stage_current=\${${stage_var}}"
+  for stage_item in ${stage_current}; do
+    if [ "${stage_item}" = "${stage_value}" ]; then
+      return 0
+    fi
+  done
+  if [ -z "${stage_current}" ]; then
+    eval "${stage_var}='${stage_value}'"
+  else
+    eval "${stage_var}='${stage_current} ${stage_value}'"
+  fi
+}
+
+stage_add_source() {
+  stage_raw=$1
+  case "${stage_raw}" in
+    ''|all)
+      stage_add_source examples
+      stage_add_source hooks
+      return 0
+      ;;
+    examples)
+      stage_path="${SCRIPT_DIR%/}/examples"
+      ;;
+    hooks)
+      stage_path="${SCRIPT_DIR%/}/hooks"
+      ;;
+    *)
+      stage_path=$(stage_resolve_source_dir "${stage_raw}")
+      ;;
+  esac
+  stage_append_ordered STAGE_SOURCES_ORDERED "${stage_path}"
+}
+
+stage_add_hook() {
+  stage_hook=$1
+  if [ -z "${stage_hook}" ]; then
+    return 0
+  fi
+  case "${stage_hook}" in
+    *,*)
+      stage_saved_ifs=$IFS
+      IFS=','
+      set -f
+      set -- ${stage_hook}
+      set +f
+      IFS=${stage_saved_ifs}
+      for stage_piece in "$@"; do
+        stage_trim=$(printf '%s' "${stage_piece}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        if [ -n "${stage_trim}" ]; then
+          stage_add_hook "${stage_trim}"
+        fi
+      done
+      return 0
+      ;;
+  esac
+  stage_trim=$(printf '%s' "${stage_hook}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  if [ -n "${stage_trim}" ]; then
+    stage_append_ordered STAGE_HOOK_FILTERS_ORDERED "${stage_trim}"
+  fi
+}
+
+stage_add_name() {
+  stage_name=$1
+  if [ -z "${stage_name}" ]; then
+    return 0
+  fi
+  case "${stage_name}" in
+    *,*)
+      stage_saved_ifs=$IFS
+      IFS=','
+      set -f
+      set -- ${stage_name}
+      set +f
+      IFS=${stage_saved_ifs}
+      for stage_piece in "$@"; do
+        stage_trim=$(printf '%s' "${stage_piece}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+        if [ -n "${stage_trim}" ]; then
+          stage_add_name "${stage_trim}"
+        fi
+      done
+      return 0
+      ;;
+  esac
+  stage_trim=$(printf '%s' "${stage_name}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  if [ -n "${stage_trim}" ]; then
+    stage_append_ordered STAGE_NAME_FILTERS_ORDERED "${stage_trim}"
+  fi
+}
+
+stage_parse_legacy_selector() {
+  stage_token=$1
+  stage_trimmed=$(printf '%s' "${stage_token}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  if [ -z "${stage_trimmed}" ]; then
+    return 0
+  fi
+  STAGE_LEGACY_USED=1
+  case "${stage_trimmed}" in
+    all|examples|hooks)
+      stage_add_source "${stage_trimmed}"
+      ;;
+    source:*)
+      stage_add_source "${stage_trimmed#source:}"
+      ;;
+    hook:*)
+      stage_add_hook "${stage_trimmed#hook:}"
+      ;;
+    name:*)
+      stage_add_name "${stage_trimmed#name:}"
+      ;;
+    *)
+      stage_add_hook "${stage_trimmed}"
+      ;;
+  esac
+}
+
+stage_handle_legacy_list() {
+  stage_list=$1
+  if [ -z "${stage_list}" ]; then
+    stage_parse_legacy_selector "all"
+    return 0
   fi
   stage_saved_ifs=$IFS
   IFS=','
   set -f
-  set -- ${stage_raw}
+  set -- ${stage_list}
   set +f
   IFS=${stage_saved_ifs}
-  for stage_selector in "$@"; do
-    stage_trimmed=$(printf '%s' "${stage_selector}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-    if [ -z "${stage_trimmed}" ]; then
+  if [ $# -eq 0 ]; then
+    stage_parse_legacy_selector "${stage_list}"
+    return 0
+  fi
+  for stage_item in "$@"; do
+    stage_parse_legacy_selector "${stage_item}"
+  done
+}
+
+stage_ensure_default_sources() {
+  if [ -n "${STAGE_SOURCES_ORDERED}" ]; then
+    return 0
+  fi
+  stage_add_source examples
+  stage_add_source hooks
+  return 0
+}
+
+stage_display_source() {
+  stage_source_path=$1
+  case "${stage_source_path}" in
+    "${SCRIPT_DIR%/}/examples")
+      printf '%s' 'examples'
+      ;;
+    "${SCRIPT_DIR%/}/hooks")
+      printf '%s' 'hooks'
+      ;;
+    *)
+      printf '%s' "${stage_source_path}"
+      ;;
+  esac
+}
+
+stage_prepare_plan_file() {
+  if [ -n "${STAGE_PLAN_FILE}" ] && [ -f "${STAGE_PLAN_FILE}" ]; then
+    :
+  else
+    STAGE_PLAN_FILE=$(mktemp "${TMPDIR:-/tmp}/githooks-stage-plan.XXXXXX") || githooks_die 'failed to create stage plan file'
+  fi
+  STAGE_PLAN_COUNT=0
+  STAGE_PLANNED_DESTS=""
+}
+
+stage_cleanup_plan() {
+  if [ -n "${STAGE_PLAN_FILE}" ] && [ -f "${STAGE_PLAN_FILE}" ]; then
+    rm -f "${STAGE_PLAN_FILE}"
+  fi
+  STAGE_PLAN_FILE=""
+}
+
+stage_register_destination() {
+  stage_dest=$1
+  if [ -z "${stage_dest}" ]; then
+    return 1
+  fi
+  stage_found=0
+  stage_new=""
+  for stage_item in ${STAGE_PLANNED_DESTS}; do
+    if [ "${stage_item}" = "${stage_dest}" ]; then
+      stage_found=1
+      if [ "${FORCE}" -eq 1 ]; then
+        continue
+      fi
+    fi
+    if [ -z "${stage_item}" ]; then
       continue
     fi
-    case "${stage_trimmed}" in
-      all)
-        stage_include_examples=1
-        stage_include_hooks=1
-        ;;
-      examples)
-        stage_include_examples=1
-        ;;
-      hooks)
-        stage_include_hooks=1
-        ;;
-      source:*)
-        stage_path=${stage_trimmed#source:}
-        stage_path_trim=$(printf '%s' "${stage_path}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        if [ -n "${stage_path_trim}" ]; then
-          stage_abs=$(stage_resolve_source_dir "${stage_path_trim}")
-          stage_append_unique STAGE_SOURCE_DIRS "${stage_abs}"
-        fi
-        ;;
-      hook:*)
-        stage_hook=${stage_trimmed#hook:}
-        stage_hook_trim=$(printf '%s' "${stage_hook}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        if [ -n "${stage_hook_trim}" ]; then
-          stage_append_unique STAGE_HOOK_FILTERS "${stage_hook_trim}"
-        fi
-        ;;
-      name:*)
-        stage_name=${stage_trimmed#name:}
-        stage_name_trim=$(printf '%s' "${stage_name}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        if [ -n "${stage_name_trim}" ]; then
-          stage_append_unique STAGE_NAME_FILTERS "${stage_name_trim}"
-        fi
-        ;;
-      *)
-        stage_append_unique STAGE_HOOK_FILTERS "${stage_trimmed}"
-        ;;
-    esac
+    if [ -z "${stage_new}" ]; then
+      stage_new="${stage_item}"
+    else
+      stage_new="${stage_new} ${stage_item}"
+    fi
   done
-  if [ "${stage_include_examples}" -eq 1 ]; then
-    stage_append_unique STAGE_SOURCE_DIRS "${SCRIPT_DIR%/}/examples"
+  if [ "${stage_found}" -eq 1 ] && [ "${FORCE}" -eq 0 ]; then
+    STAGE_PLANNED_DESTS="${stage_new}"
+    return 1
   fi
-  if [ "${stage_include_hooks}" -eq 1 ]; then
-    stage_append_unique STAGE_SOURCE_DIRS "${SCRIPT_DIR%/}/hooks"
+  if [ -z "${stage_new}" ]; then
+    STAGE_PLANNED_DESTS="${stage_dest}"
+  else
+    STAGE_PLANNED_DESTS="${stage_new} ${stage_dest}"
   fi
-  if [ -z "${STAGE_SOURCE_DIRS}" ]; then
-    stage_append_unique STAGE_SOURCE_DIRS "${SCRIPT_DIR%/}/examples"
-    stage_append_unique STAGE_SOURCE_DIRS "${SCRIPT_DIR%/}/hooks"
+  return 0
+}
+
+stage_relative_path() {
+  stage_file=$1
+  stage_source=$2
+  case "${stage_file}" in
+    "${stage_source%/}/"*)
+      printf '%s' "${stage_file#${stage_source%/}/}"
+      ;;
+    *)
+      printf '%s' "$(basename "${stage_file}")"
+      ;;
+  esac
+}
+
+stage_add_plan_entry() {
+  stage_hook=$1
+  stage_name=$2
+  stage_source=$3
+  stage_file=$4
+  stage_rel=$(stage_relative_path "${stage_file}" "${stage_source}")
+  parts_dir=$(githooks_parts_dir "${stage_hook}")
+  stage_dest="${parts_dir%/}/${stage_name}"
+  if ! stage_register_destination "${stage_dest}"; then
+    githooks_log_info "stage skip ${stage_name}: duplicate destination for ${stage_hook}"
+    return 0
   fi
+  stage_prepare_plan_file
+  printf '%s|%s|%s|%s|%s\n' "${stage_hook}" "${stage_name}" "${stage_source}" "${stage_rel}" "${stage_file}" >>"${STAGE_PLAN_FILE}" || githooks_die "failed to write stage plan"
+  STAGE_PLAN_COUNT=$((STAGE_PLAN_COUNT + 1))
+}
+
+stage_summary_requested() {
+  if [ "${STAGE_SUMMARY}" -eq 1 ] || [ "${DRY_RUN}" -eq 1 ]; then
+    return 0
+  fi
+  return 1
+}
+
+stage_sort_plan_if_needed() {
+  if [ -z "${STAGE_PLAN_FILE}" ] || [ ! -f "${STAGE_PLAN_FILE}" ]; then
+    return 0
+  fi
+  case "${STAGE_ORDER_STRATEGY}" in
+    hook)
+      stage_tmp=$(mktemp "${TMPDIR:-/tmp}/githooks-stage-plan-sort.XXXXXX") || githooks_die 'failed to create sort scratch'
+      LC_ALL=C sort -t '|' -k1,1 -k2,2 "${STAGE_PLAN_FILE}" >"${stage_tmp}"
+      mv "${stage_tmp}" "${STAGE_PLAN_FILE}"
+      ;;
+    name)
+      stage_tmp=$(mktemp "${TMPDIR:-/tmp}/githooks-stage-plan-sort.XXXXXX") || githooks_die 'failed to create sort scratch'
+      LC_ALL=C sort -t '|' -k2,2 -k1,1 "${STAGE_PLAN_FILE}" >"${stage_tmp}"
+      mv "${stage_tmp}" "${STAGE_PLAN_FILE}"
+      ;;
+    *)
+      :
+      ;;
+  esac
+}
+
+stage_emit_plan_summary() {
+  if stage_summary_requested; then
+    :
+  else
+    return 0
+  fi
+  if [ -z "${STAGE_PLAN_FILE}" ] || [ ! -f "${STAGE_PLAN_FILE}" ]; then
+    return 0
+  fi
+  while IFS='|' read -r stage_hook stage_name stage_source stage_rel stage_file; do
+    [ -n "${stage_hook}" ] || continue
+    stage_label=$(stage_display_source "${stage_source}")
+    githooks_log_info "PLAN: hook=${stage_hook} name=${stage_name} source=${stage_label} rel=${stage_rel}"
+  done <"${STAGE_PLAN_FILE}"
 }
 
 stage_is_hook_like() {
@@ -469,8 +702,8 @@ stage_normalise_hooks() {
 
 stage_hook_allowed() {
   stage_hook=$1
-  if [ -n "${STAGE_HOOK_FILTERS}" ]; then
-    if stage_list_contains "${STAGE_HOOK_FILTERS}" "${stage_hook}"; then
+  if [ -n "${STAGE_HOOK_FILTERS_ORDERED}" ]; then
+    if stage_list_contains "${STAGE_HOOK_FILTERS_ORDERED}" "${stage_hook}"; then
       :
     else
       return 1
@@ -486,19 +719,15 @@ stage_hook_allowed() {
   return 0
 }
 
-stage_apply_hook_filters() {
-  stage_input_hooks=$1
-  stage_result=""
-  for stage_hook in ${stage_input_hooks}; do
-    if stage_hook_allowed "${stage_hook}"; then
-      if [ -z "${stage_result}" ]; then
-        stage_result="${stage_hook}"
-      else
-        stage_result="${stage_result} ${stage_hook}"
-      fi
-    fi
-  done
-  printf '%s' "${stage_result}"
+stage_name_allowed() {
+  stage_basename=$1
+  if [ -z "${STAGE_NAME_FILTERS_ORDERED}" ]; then
+    return 0
+  fi
+  if stage_list_contains "${STAGE_NAME_FILTERS_ORDERED}" "${stage_basename}"; then
+    return 0
+  fi
+  return 1
 }
 
 stage_ensure_runner() {
@@ -580,10 +809,10 @@ stage_copy_part() {
 
 stage_name_filtered_out() {
   stage_basename=$1
-  if [ -z "${STAGE_NAME_FILTERS}" ]; then
+  if [ -z "${STAGE_NAME_FILTERS_ORDERED}" ]; then
     return 1
   fi
-  for stage_name_filter in ${STAGE_NAME_FILTERS}; do
+  for stage_name_filter in ${STAGE_NAME_FILTERS_ORDERED}; do
     if [ "${stage_basename}" = "${stage_name_filter}" ]; then
       return 1
     fi
@@ -593,14 +822,16 @@ stage_name_filtered_out() {
 
 stage_process_file() {
   stage_file=$1
-  stage_root=$2
+  stage_source=$2
   stage_basename=$(basename "${stage_file}")
-  if stage_name_filtered_out "${stage_basename}"; then
+  if stage_name_allowed "${stage_basename}"; then
+    :
+  else
     STAGE_SKIPPED_FILES=$((STAGE_SKIPPED_FILES + 1))
     githooks_log_info "stage skip ${stage_basename}: filtered by name"
     return 0
   fi
-  stage_detect_hooks_for_file "${stage_file}" "${stage_root}"
+  stage_detect_hooks_for_file "${stage_file}" "${stage_source}"
   stage_hooks=${STAGE_DETECTED_HOOKS}
   if [ -z "${stage_hooks}" ]; then
     if [ "${HOOKS_WERE_EXPLICIT}" -eq 1 ] && [ -n "${HOOKS}" ]; then
@@ -612,29 +843,29 @@ stage_process_file() {
     fi
   fi
   stage_hooks=$(stage_normalise_hooks "${stage_hooks}")
-  stage_hooks=$(stage_apply_hook_filters "${stage_hooks}")
-  if [ -z "${stage_hooks}" ]; then
+  stage_allowed_hooks=""
+  stage_hook_saved_ifs=$IFS
+  IFS=' '
+  for stage_hook in ${stage_hooks}; do
+    if stage_hook_allowed "${stage_hook}"; then
+      if [ -z "${stage_allowed_hooks}" ]; then
+        stage_allowed_hooks="${stage_hook}"
+      else
+        stage_allowed_hooks="${stage_allowed_hooks} ${stage_hook}"
+      fi
+    fi
+  done
+  IFS=${stage_hook_saved_ifs}
+  if [ -z "${stage_allowed_hooks}" ]; then
     STAGE_SKIPPED_FILES=$((STAGE_SKIPPED_FILES + 1))
     githooks_log_info "stage skip ${stage_basename}: filtered by hook selectors"
     return 0
   fi
-  case "${stage_file}" in
-    "${stage_root%/}"/*)
-      stage_rel_path=${stage_file#${stage_root%/}/}
-      ;;
-    *)
-      stage_rel_path=${stage_basename}
-      ;;
-  esac
+  stage_prepare_plan_file
   stage_hook_saved_ifs=$IFS
   IFS=' '
-  for stage_hook in ${stage_hooks}; do
-    parts_dir=$(githooks_parts_dir "${stage_hook}")
-    create_parts_dir "${stage_hook}"
-    stage_ensure_stub "${stage_hook}"
-    stage_dest="${parts_dir%/}/${stage_basename}"
-    githooks_log_info "stage plan ${stage_rel_path} -> ${stage_hook}"
-    stage_copy_part "${stage_file}" "${stage_dest}"
+  for stage_hook in ${stage_allowed_hooks}; do
+    stage_add_plan_entry "${stage_hook}" "${stage_basename}" "${stage_source}" "${stage_file}"
   done
   IFS=${stage_hook_saved_ifs}
 }
@@ -644,9 +875,14 @@ run_stage() {
   STAGE_SKIP_IDENTICAL=0
   STAGE_SKIPPED_FILES=0
   STAGE_RUNNER_READY=0
-  parse_stage_selectors
+  if [ "${STAGE_LEGACY_USED}" -eq 1 ]; then
+    githooks_log_warn "stage: legacy selector syntax detected; prefer --stage-source/--stage-hook/--stage-name"
+  fi
+  stage_ensure_default_sources
+  stage_prepare_plan_file
   stage_any_source=0
-  for stage_source in ${STAGE_SOURCE_DIRS}; do
+  stage_saved_ifs=$IFS
+  for stage_source in ${STAGE_SOURCES_ORDERED}; do
     stage_any_source=1
     if [ ! -d "${stage_source}" ]; then
       githooks_log_warn "stage source missing: ${stage_source}"
@@ -656,7 +892,6 @@ run_stage() {
     if [ -z "${stage_candidates}" ]; then
       continue
     fi
-    stage_saved_ifs=$IFS
     stage_newline=$(printf '\n_')
     IFS=${stage_newline%_}
     set -f
@@ -665,29 +900,59 @@ run_stage() {
       stage_process_file "${stage_candidate}" "${stage_source}"
     done
     set +f
-    IFS=${stage_saved_ifs}
   done
+  IFS=${stage_saved_ifs}
   if [ "${stage_any_source}" -eq 0 ]; then
     githooks_log_warn "stage aborted: no source directories available"
+    stage_cleanup_plan
     return 1
   fi
+  if [ "${STAGE_PLAN_COUNT}" -eq 0 ]; then
+    if stage_summary_requested; then
+      githooks_log_info "PLAN: no matching files"
+    fi
+    if [ "${DRY_RUN}" -eq 1 ]; then
+      githooks_log_info "stage dry-run complete"
+    else
+      githooks_log_info "stage complete: 0 file(s) updated"
+      if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
+        githooks_log_info "stage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
+      fi
+    fi
+    stage_cleanup_plan
+    return 0
+  fi
+  stage_sort_plan_if_needed
+  stage_emit_plan_summary
   if [ "${DRY_RUN}" -eq 1 ]; then
     githooks_log_info "stage dry-run complete"
-  else
-    githooks_log_info "stage complete: ${STAGE_COPY_COUNT} file(s) updated"
-    if [ "${STAGE_SKIP_IDENTICAL}" -gt 0 ]; then
-      githooks_log_info "stage skipped ${STAGE_SKIP_IDENTICAL} identical file(s)"
-    fi
-    if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
-      githooks_log_info "stage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
-    fi
+    stage_cleanup_plan
+    return 0
+  fi
+  while IFS='|' read -r plan_hook plan_name plan_source plan_rel plan_file; do
+    [ -n "${plan_hook}" ] || continue
+    stage_ensure_runner
+    parts_dir=$(githooks_parts_dir "${plan_hook}")
+    create_parts_dir "${plan_hook}"
+    stage_ensure_stub "${plan_hook}"
+    stage_dest="${parts_dir%/}/${plan_name}"
+    githooks_log_info "stage plan ${plan_rel} -> ${plan_hook}"
+    stage_copy_part "${plan_file}" "${stage_dest}"
+  done <"${STAGE_PLAN_FILE}"
+  stage_cleanup_plan
+  githooks_log_info "stage complete: ${STAGE_COPY_COUNT} file(s) updated"
+  if [ "${STAGE_SKIP_IDENTICAL}" -gt 0 ]; then
+    githooks_log_info "stage skipped ${STAGE_SKIP_IDENTICAL} identical file(s)"
+  fi
+  if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
+    githooks_log_info "stage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
   fi
   return 0
 }
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --hooks)
+    --hooks|-H)
       if [ "$#" -lt 2 ]; then
         githooks_die "--hooks requires an argument"
       fi
@@ -700,41 +965,147 @@ while [ "$#" -gt 0 ]; do
       HOOKS_WERE_EXPLICIT=1
       shift
       ;;
+    -s)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "-s requires an argument"
+      fi
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_handle_legacy_list "$2"
+      shift 2
+      ;;
+    -s*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_handle_legacy_list "${1#-s}"
+      shift
+      ;;
     --stage)
       REQUEST_STAGE=1
       MODE="stage"
-      if [ -z "${STAGE_SELECTOR_RAW}" ]; then
-        STAGE_SELECTOR_RAW="all"
-      else
-        STAGE_SELECTOR_RAW="${STAGE_SELECTOR_RAW},all"
+      stage_arg="all"
+      if [ "$#" -ge 2 ]; then
+        case "$2" in
+          -* ) stage_arg="all" ;;
+          * ) stage_arg=$2; shift ;;
+        esac
       fi
+      stage_handle_legacy_list "${stage_arg}"
       shift
       ;;
     --stage=*)
       REQUEST_STAGE=1
       MODE="stage"
-      _stage_value=${1#*=}
-      if [ -z "${STAGE_SELECTOR_RAW}" ]; then
-        STAGE_SELECTOR_RAW="${_stage_value}"
-      else
-        STAGE_SELECTOR_RAW="${STAGE_SELECTOR_RAW},${_stage_value}"
-      fi
+      stage_handle_legacy_list "${1#*=}"
       shift
       ;;
-    --dry-run)
+    --stage-source|-S)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--stage-source requires an argument"
+      fi
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_source "$2"
+      shift 2
+      ;;
+    --stage-source=*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_source "${1#*=}"
+      shift
+      ;;
+    --stage-hook|-G)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--stage-hook requires an argument"
+      fi
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_hook "$2"
+      shift 2
+      ;;
+    --stage-hook=*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_hook "${1#*=}"
+      shift
+      ;;
+    --stage-name|-N)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--stage-name requires an argument"
+      fi
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_name "$2"
+      shift 2
+      ;;
+    --stage-name=*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      stage_add_name "${1#*=}"
+      shift
+      ;;
+    --stage-order)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--stage-order requires an argument"
+      fi
+      REQUEST_STAGE=1
+      MODE="stage"
+      STAGE_ORDER_STRATEGY="$2"
+      case "${STAGE_ORDER_STRATEGY}" in
+        source|hook|name)
+          ;;
+        *)
+          githooks_die "unknown --stage-order strategy: ${STAGE_ORDER_STRATEGY}"
+          ;;
+      esac
+      shift 2
+      ;;
+    --stage-order=*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      STAGE_ORDER_STRATEGY="${1#*=}"
+      case "${STAGE_ORDER_STRATEGY}" in
+        source|hook|name)
+          ;;
+        *)
+          githooks_die "unknown --stage-order strategy: ${STAGE_ORDER_STRATEGY}"
+          ;;
+      esac
+      shift
+      ;;
+    --stage-summary|-M)
+      REQUEST_STAGE=1
+      MODE="stage"
+      STAGE_SUMMARY=1
+      shift
+      ;;
+    --stage-summary=*)
+      REQUEST_STAGE=1
+      MODE="stage"
+      case "${1#*=}" in
+        0|false|FALSE|no|NO)
+          STAGE_SUMMARY=0
+          ;;
+        *)
+          STAGE_SUMMARY=1
+          ;;
+      esac
+      shift
+      ;;
+    --dry-run|-n)
       DRY_RUN=1
       shift
       ;;
-    --force)
+    --force|-f)
       FORCE=1
       shift
       ;;
-    --uninstall)
+    --uninstall|-u)
       MODE="uninstall"
       REQUEST_UNINSTALL=1
       shift
       ;;
-    --all-hooks)
+    --all-hooks|-A)
       USE_ALL=1
       HOOKS_WERE_EXPLICIT=1
       shift
@@ -755,10 +1126,6 @@ fi
 
 if [ "${REQUEST_STAGE}" -eq 1 ] && [ "${REQUEST_UNINSTALL}" -eq 1 ]; then
   githooks_die "--stage cannot be combined with --uninstall"
-fi
-
-if [ "${MODE}" = "stage" ] && [ -z "${STAGE_SELECTOR_RAW}" ]; then
-  STAGE_SELECTOR_RAW="all"
 fi
 
 shared_root=$(githooks_shared_root)
