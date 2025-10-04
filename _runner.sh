@@ -1,6 +1,6 @@
 #!/bin/sh
 # Universal Git hook runner that dispatches to per-hook parts in lexical order.
-# Relies on scripts/git-hooks/lib/common.sh (copied alongside runner at install time).
+# Relies on scripts/.githooks/lib/common.sh (copied alongside runner at install time).
 
 set -eu
 
@@ -10,7 +10,7 @@ if [ ! -f "${LIB_PATH}" ]; then
   printf '[hook-runner] ERROR: missing shared library at %s\n' "${LIB_PATH}" >&2
   exit 1
 fi
-# shellcheck source=scripts/git-hooks/lib/common.sh
+# shellcheck source=scripts/.githooks/lib/common.sh
 . "${LIB_PATH}"
 
 if [ "$#" -lt 1 ]; then

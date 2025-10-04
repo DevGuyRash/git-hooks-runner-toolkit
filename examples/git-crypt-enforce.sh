@@ -10,7 +10,7 @@ if [ ! -f "${LIB_PATH}" ]; then
   printf '[hook-runner] ERROR: git-crypt example missing common library at %s\n' "${LIB_PATH}" >&2
   exit 1
 fi
-# shellcheck source=scripts/git-hooks/lib/common.sh
+# shellcheck source=scripts/.githooks/lib/common.sh
 . "${LIB_PATH}"
 
 export GITHOOKS_LOG_NAMESPACE=${GITHOOKS_LOG_NAMESPACE:-git-crypt}

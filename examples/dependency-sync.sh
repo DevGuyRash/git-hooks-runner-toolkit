@@ -11,7 +11,7 @@ if [ ! -f "${LIB_PATH}" ]; then
   printf '[hook-runner] ERROR: dependency-sync helper missing common library at %s\n' "${LIB_PATH}" >&2
   exit 1
 fi
-# shellcheck source=scripts/git-hooks/lib/common.sh
+# shellcheck source=scripts/.githooks/lib/common.sh
 . "${LIB_PATH}"
 
 if githooks_is_bare_repo; then

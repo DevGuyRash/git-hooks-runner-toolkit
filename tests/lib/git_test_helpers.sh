@@ -11,7 +11,7 @@ set -eu
 : "${GHR_GIT:=$(command -v git)}"
 
 ghr_mk_sandbox() {
-  ghr_root=$(${GHR_MKTEMP} -d "${TMPDIR:-/tmp}/git-hooks-runner.XXXXXX") || return 1
+  ghr_root=$(${GHR_MKTEMP} -d "${TMPDIR:-/tmp}/.githooks-runner.XXXXXX") || return 1
   ghr_work="${ghr_root}/repo"
   ghr_remote="${ghr_root}/remote.git"
   ghr_home="${ghr_root}/home"

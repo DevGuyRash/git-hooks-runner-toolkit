@@ -25,9 +25,9 @@ example_tests_init() {
     LIB_PATH="${REPO_ROOT}/tests/lib/git_test_helpers.sh"
   else
     REPO_ROOT=$(CDPATH= cd -- "${TEST_DIR}/../../.." && pwd)
-    INSTALLER="${REPO_ROOT}/scripts/git-hooks/install.sh"
-    EXAMPLES_DIR="${REPO_ROOT}/scripts/git-hooks/examples"
-    LIB_PATH="${REPO_ROOT}/scripts/git-hooks/tests/lib/git_test_helpers.sh"
+    INSTALLER="${REPO_ROOT}/scripts/.githooks/install.sh"
+    EXAMPLES_DIR="${REPO_ROOT}/scripts/.githooks/examples"
+    LIB_PATH="${REPO_ROOT}/scripts/.githooks/tests/lib/git_test_helpers.sh"
     if [ ! -f "${LIB_PATH}" ]; then
       LIB_PATH="${REPO_ROOT}/tests/lib/git_test_helpers.sh"
     fi
