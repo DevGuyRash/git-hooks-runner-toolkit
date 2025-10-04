@@ -16,6 +16,24 @@ With this toolkit, you can:
 
 The toolkit installs a universal hook runner that executes any number of "hook parts" you place in a dedicated directory. These parts are just executable shell scripts, and they run in a predictable order based on their filenames.
 
+### The `.git/hooks` Directory and the Shared Runner
+
+When you install the toolkit, it creates a small "stub" file for each hook you want to manage in your `.git/hooks` directory. This stub file is a simple shell script that does one thing: it executes the shared runner script, which is located in `.githooks/_runner.sh`.
+
+The shared runner then takes over and does the following:
+
+1.  It determines which hook is being run (e.g., `pre-commit`, `post-merge`, etc.).
+2.  It looks for a corresponding directory in `.githooks` (e.g., `.githooks/pre-commit.d`).
+3.  It executes all the executable scripts it finds in that directory, in lexical order.
+
+This approach has several advantages:
+
+-   **Your `.git/hooks` directory stays clean**: You only have a small stub file for each hook, instead of a large, monolithic script.
+-   **Your hooks are version-controlled**: The actual hook logic lives in the `.githooks` directory, which is part of your repository.
+-   **Your hooks are composable**: You can easily add, remove, or reorder hook parts without having to modify a single, large script.
+
+Here is a diagram that illustrates the process:
+
 ```mermaid
 graph TD
     subgraph "Git Event"
