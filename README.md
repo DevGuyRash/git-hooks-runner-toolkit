@@ -314,13 +314,14 @@ The `install.sh` script provides several commands to customize its behavior:
 
 ### Provided Examples
 
-The toolkit comes with several examples in the `examples/` directory. You can stage them with:
+The toolkit comes with several examples in the `examples/` directory. Each has a
+companion guide under `docs/examples/`. Stage them with:
 
 ```bash
 .githooks/install.sh stage add examples
 ```
 
-- **`dependency-sync.sh`**: Automatically runs `npm install`, `bundle install`, etc., when dependency files change.
-- **`watch-configured-actions.sh`**: Run custom commands when specific files change, based on a YAML or JSON configuration file.
-- **`metadata-apply.sh`**: Restores file permissions and other metadata using `metastore`.
-- **`git-crypt-enforce.sh`**: Ensures that files that should be encrypted with `git-crypt` are not committed in plaintext.
+- **`dependency-sync.sh`** ([guide](docs/examples/dependency-sync.md)): Automatically runs `npm install`, `bundle install`, etc., when dependency files change.
+- **`watch-configured-actions.sh`** ([guide](docs/examples/watch-configured-actions.md)): Run custom commands when specific files change, based on a YAML or JSON configuration file.
+- **`metadata-apply.sh`** ([guide](docs/examples/metadata-apply.md)): Restores file permissions and other metadata using `metastore`.
+- **`git-crypt-enforce.sh`** ([guide](docs/examples/git-crypt-enforce.md)): Ensures that files that should be encrypted with `git-crypt` are not committed in plaintext.
