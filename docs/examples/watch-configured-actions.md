@@ -79,5 +79,6 @@ continue_on_error=true
 
 ## Requirements
 
+- Git must be available (used to collect changed paths).
 - [`yq`](https://mikefarah.gitbook.io/yq/) for YAML configs, [`jq`](https://stedolan.github.io/jq/) for JSON.
 - Rules that run commands rely on those commands being available on `PATH`.

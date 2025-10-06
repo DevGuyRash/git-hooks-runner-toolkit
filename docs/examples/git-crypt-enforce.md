@@ -44,6 +44,7 @@ git config gitcrypt.hook.strictHead true
 
 ## Requirements
 
+- Git must be available (the hook inspects staged content and HEAD).
 - [`git-crypt`](https://www.agwa.name/projects/git-crypt/) must be installed and
   the repository unlocked for encryption checks to pass.
 - `.gitattributes` must assign `filter=git-crypt` (or a variant) to all secrets.

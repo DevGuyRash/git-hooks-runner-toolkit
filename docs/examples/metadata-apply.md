@@ -27,8 +27,8 @@ missing.
 
 ## metastore Command
 
-Ensure `metastore` is installed and available on `PATH`. The hook constructs and
-executes:
+Ensure `git` and `metastore` are installed and available on `PATH`. The hook
+constructs and executes:
 
 ```bash
 metastore -a -f <manifest> <repo-root>
