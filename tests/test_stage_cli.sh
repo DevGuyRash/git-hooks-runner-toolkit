@@ -403,6 +403,87 @@ test_add_with_name_glob_matches_multiple_parts() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
+test_add_from_vendored_toolkit_skips_duplicate_runner_copy() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  stdout_log="$parsed_repo/stage.out"
+  stderr_log="$parsed_repo/stage.err"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  vendor_dir="$parsed_repo/.githooks"
+
+  if [ "$rc" -eq 0 ]; then
+    if ! mkdir -p "$vendor_dir"; then
+      TEST_FAILURE_DIAG='failed to create vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp "$REPO_ROOT/install.sh" "$vendor_dir/install.sh"; then
+      TEST_FAILURE_DIAG='failed to copy install.sh into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp "$REPO_ROOT/_runner.sh" "$vendor_dir/_runner.sh"; then
+      TEST_FAILURE_DIAG='failed to copy runner into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp -R "$REPO_ROOT/lib" "$vendor_dir/"; then
+      TEST_FAILURE_DIAG='failed to copy lib directory into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp -R "$REPO_ROOT/examples" "$vendor_dir/"; then
+      TEST_FAILURE_DIAG='failed to copy examples directory into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! chmod 755 "$vendor_dir/install.sh" "$vendor_dir/_runner.sh"; then
+      TEST_FAILURE_DIAG='failed to mark vendored scripts executable'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ghr_in_repo "$parsed_repo" "$parsed_home" ./.githooks/install.sh stage add examples --name 'git-crypt-enforce' >"$stdout_log" 2>"$stderr_log"; then
+      :
+    else
+      TEST_FAILURE_DIAG=$(printf 'vendored stage add failed\nstdout:\n%s\nstderr:\n%s' "$(ghr_read_or_empty "$stdout_log")" "$(ghr_read_or_empty "$stderr_log")")
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    staged_part="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
+    if [ ! -x "$staged_part" ]; then
+      TEST_FAILURE_DIAG='vendored stage add did not stage expected part'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
 test_stage_remove_by_name() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
@@ -644,7 +725,7 @@ test_stage_help_subcommands() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-TOTAL_TESTS=14
+TOTAL_TESTS=15
 
 tap_plan "$TOTAL_TESTS"
 
@@ -669,6 +750,7 @@ run_test 'stage add interface does not print legacy warnings' test_add_no_legacy
 run_test 'stage add with CSV hooks stages matching examples' test_add_with_csv_hook_filters
 run_test 'stage add with --name filters to one part' test_add_with_name_filter_selects_single_part
 run_test 'stage add with glob name filter stages matching scripts' test_add_with_name_glob_matches_multiple_parts
+run_test 'stage add from vendored toolkit skips duplicate runner copy' test_add_from_vendored_toolkit_skips_duplicate_runner_copy
 run_test 'stage remove accepts bare names' test_stage_remove_by_name
 run_test 'stage list prints header and entries' test_stage_list_outputs_entries
 run_test 'global help and version flags respond' test_global_help_and_version

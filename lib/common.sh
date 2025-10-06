@@ -227,6 +227,10 @@ githooks_copy_file() {
   if [ ! -f "${_githooks_copy_src}" ]; then
     githooks_die "Source file missing: ${_githooks_copy_src}"
   fi
+  if [ -f "${_githooks_copy_dst}" ] && [ "${_githooks_copy_src}" -ef "${_githooks_copy_dst}" ]; then
+    githooks_log_info "copy skipped; ${_githooks_copy_src} already at ${_githooks_copy_dst}"
+    return 0
+  fi
   cp "${_githooks_copy_src}" "${_githooks_copy_dst}" || githooks_die "Failed to copy ${_githooks_copy_src} -> ${_githooks_copy_dst}"
 }
 
