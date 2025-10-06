@@ -15,83 +15,55 @@ fi
 print_usage() {
   cat <<'HELP'
 NAME
-    install.sh - Install, update, or remove the Git Hooks Runner Toolkit.
+    githooks - Manage shared Git hook runners and composable hook parts.
 
 SYNOPSIS
-    install.sh COMMAND [OPTIONS]
+    githooks [GLOBAL OPTIONS] COMMAND [SUBCOMMAND] [ARGS]
 
 DESCRIPTION
-    This script manages the installation and configuration of the Git Hooks Runner
-    Toolkit in your repository. It creates a shared runner, a library of helper
-    functions, and stub dispatchers for the hooks you want to manage.
-
-    The toolkit allows you to create composable, version-controlled Git hooks that
-    are easy to maintain. Instead of a single, monolithic hook script, you can
-    have multiple "hook parts" that are executed in lexical order.
-
-COMMANDS
-    init [--hooks HOOKS] [--all-hooks] [--force]
-        Install the toolkit and create hook stubs. This is the default command if
-        no other command is specified.
-
-    add SOURCE [--for-hook HOOK]
-        Add a hook script from a source directory. The special keywords "examples"
-        and "hooks" can be used to refer to the bundled examples and hooks.
-
-    remove HOOK SCRIPT_NAME
-        Remove a hook script from a specific hook.
-
-    uninstall
-        Remove all runner artifacts and managed hook stubs.
-
-    help
-        Show this help message.
+    The toolkit installs a central runner under .githooks/, arranges Git hook
+    stubs to dispatch through it, and provides commands for staging, listing,
+    and removing hook parts. Commands accept --dry-run so you can inspect
+    planned actions before they modify the working tree.
 
 GLOBAL OPTIONS
-    -n, --dry-run
-        Print the planned actions without actually touching the filesystem.
-
     -h, --help
-        Show this help message.
+        Show this overview or, when combined with a command, print its manual.
 
-EXAMPLES
-    Install the default set of hooks:
-        install.sh
+    -V, --version
+        Display the toolkit version banner.
 
-    Install only the pre-commit and post-merge hooks:
-        install.sh init --hooks pre-commit,post-merge
+    -n, --dry-run
+        Simulate filesystem changes, echoing the work that would be performed.
 
-    Add all the included examples:
-        install.sh add examples
+COMMAND OVERVIEW
+    install
+        Provision the runner, stubs, and default hook directories.
 
-    Add only the dependency-sync.sh example for the post-merge hook:
-        install.sh add examples --for-hook post-merge
+    stage
+        Add, remove, or list staged hook parts sourced from directories.
 
-    Remove a hook script:
-        install.sh remove post-merge dependency-sync.sh
+    hooks
+        Summarise hook coverage and staged parts across the repository.
 
-    Uninstall all managed hooks:
-        install.sh uninstall
+    config
+        Inspect Git configuration relevant to the runner, or update hooks-path.
 
-FILES
-    .githooks/
-        The directory where the shared runner, library, and hook parts are
-        stored.
+    uninstall
+        Remove managed stubs and shared runner artefacts.
 
-    .githooks/_runner.sh
-        The shared hook runner.
+    help
+        Display contextual help for any command or subcommand.
 
-    .githooks/lib/common.sh
-        A library of shared helper functions.
-
-    .githooks/<hook>.d/
-        The directory where the hook parts for a specific hook are stored.
-
-    .git/hooks/<hook>
-        The hook stub that delegates to the shared runner.
+LEGACY COMPATIBILITY
+    init                Alias for install.
+    add                 Alias for stage add.
+    remove              Alias for stage remove.
 
 SEE ALSO
-    githooks(1)
+    githooks help COMMAND
+    githooks COMMAND help
+    githooks COMMAND SUBCOMMAND --help
 HELP
 }
 
@@ -107,6 +79,10 @@ USE_ALL=0
 HOOKS_WERE_EXPLICIT=0
 REQUEST_STAGE=0
 REQUEST_UNINSTALL=0
+
+TOOLKIT_VERSION="${TOOLKIT_VERSION:-0.3.0}"
+COMPAT_WARNED=0
+STAGE_LIST_HEADER_SHOWN=0
 
 STAGE_SOURCES_ORDERED=""
 STAGE_HOOK_FILTERS_ORDERED=""
@@ -759,14 +735,35 @@ stage_hook_allowed() {
   return 0
 }
 
+stage_name_matches_filter() {
+  stage_candidate=$1
+  stage_filter=$2
+  case "${stage_candidate}" in
+    ${stage_filter})
+      return 0
+      ;;
+  esac
+  stage_candidate_noext=${stage_candidate%.sh}
+  if [ "${stage_candidate_noext}" != "${stage_candidate}" ]; then
+    case "${stage_candidate_noext}" in
+      ${stage_filter})
+        return 0
+        ;;
+    esac
+  fi
+  return 1
+}
+
 stage_name_allowed() {
   stage_basename=$1
   if [ -z "${STAGE_NAME_FILTERS_ORDERED}" ]; then
     return 0
   fi
-  if stage_list_contains "${STAGE_NAME_FILTERS_ORDERED}" "${stage_basename}"; then
-    return 0
-  fi
+  for stage_name_filter in ${STAGE_NAME_FILTERS_ORDERED}; do
+    if stage_name_matches_filter "${stage_basename}" "${stage_name_filter}"; then
+      return 0
+    fi
+  done
   return 1
 }
 
@@ -853,7 +850,7 @@ stage_name_filtered_out() {
     return 1
   fi
   for stage_name_filter in ${STAGE_NAME_FILTERS_ORDERED}; do
-    if [ "${stage_basename}" = "${stage_name_filter}" ]; then
+    if stage_name_matches_filter "${stage_basename}" "${stage_name_filter}"; then
       return 1
     fi
   done
@@ -916,7 +913,7 @@ run_stage() {
   STAGE_SKIPPED_FILES=0
   STAGE_RUNNER_READY=0
   if [ "${STAGE_LEGACY_USED}" -eq 1 ]; then
-    githooks_log_warn "stage: legacy selector syntax detected; prefer --stage-source/--stage-hook/--stage-name"
+    githooks_log_warn "stage: legacy selector syntax detected; prefer positional sources with --hook/--name filters"
   fi
   stage_ensure_default_sources
   stage_prepare_plan_file
@@ -990,12 +987,588 @@ run_stage() {
   return 0
 }
 
-if [ "$#" -eq 0 ]; then
-  COMMAND="init"
-else
-  COMMAND=$1
-  shift
-fi
+print_install_usage() {
+  cat <<'HELP'
+NAME
+    githooks install - Install the shared runner and hook stubs.
+
+SYNOPSIS
+    githooks install [OPTIONS]
+
+DESCRIPTION
+    Creates or refreshes the managed hook runner under .githooks/, ensures each
+    selected Git hook has a stub that dispatches into the runner, and prepares
+    per-hook directories (.githooks/<hook>.d) for staged scripts. Existing stubs
+    are left untouched unless --force is supplied.
+
+OPTIONS
+    --hooks HOOKS | --hooks=HOOKS | -H HOOKS
+        Comma-separated hook names to manage. Overrides the default curated set.
+
+    --all-hooks | --all | -A
+        Manage every hook supported by Git. Useful for shared repositories that
+        require wide coverage.
+
+    --force | -f
+        Overwrite any existing managed stub files. Safe for regenerating stubs.
+
+    -n, --dry-run
+        Print the actions that would be taken without touching the filesystem.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks install --hooks pre-commit,pre-push
+        Install the runner and only manage the pre-commit and pre-push hooks.
+
+    githooks install --all-hooks --dry-run
+        Review the complete set of hooks that would be managed before applying.
+
+SEE ALSO
+    githooks stage add, githooks uninstall
+HELP
+}
+
+print_stage_usage() {
+  cat <<'HELP'
+NAME
+    githooks stage - Stage, remove, or list hook parts sourced from directories.
+
+SYNOPSIS
+    githooks stage [SUBCOMMAND] [ARGS]
+
+DESCRIPTION
+    The stage family copies executable scripts into .githooks/<hook>.d based on
+    metadata comments or directory structure. Use `githooks stage help <topic>`
+    for detailed guidance on each operation.
+
+SUBCOMMANDS
+    add     Plan and copy scripts from directories into managed hook slots.
+    remove  Delete one or all staged scripts for a given hook.
+    list    Display staged scripts, grouped by hook.
+    help    Show this manual or a subcommand-specific manual.
+
+GLOBAL OPTIONS
+    -n, --dry-run
+        Honour dry-run mode across stage subcommands, surfacing planned work.
+
+EXAMPLES
+    githooks stage add examples --hook pre-commit --name 'lint-*'
+        Stage example lint scripts whose filenames match the glob, targeting the
+        pre-commit hook only.
+
+    githooks stage list pre-commit
+        Inspect staged scripts for the pre-commit hook.
+
+SEE ALSO
+    githooks stage add help
+    githooks stage remove help
+    githooks stage list help
+HELP
+}
+
+print_stage_add_usage() {
+  cat <<'HELP'
+NAME
+    githooks stage add - Copy hook parts from a source directory into .githooks.
+
+SYNOPSIS
+    githooks stage add SOURCE [OPTIONS]
+
+DESCRIPTION
+    Walks SOURCE (examples, hooks, or a custom directory), detects executable
+    *.sh files, resolves their target hooks either from `# githooks-stage:`
+    metadata or by directory placement, and copies matching scripts into
+    .githooks/<hook>.d. Destination filenames mirror the source basename, with
+    `.sh` appended automatically when omitted.
+
+OPTIONS
+    --hook HOOKS | --hook=HOOKS | --for-hook HOOKS
+        Restrict staging to the listed hooks (comma-separated). Scripts whose
+        resolved hook set does not intersect the filter are skipped.
+
+    --name PATTERNS | --name=PATTERNS | --part PATTERNS
+        Accept a comma-separated list of shell globs. A script is staged only if
+        its basename, or that basename without a trailing .sh, matches at least
+        one pattern (e.g. `git-crypt-*`, `lint`).
+
+    --force | -f
+        Overwrite existing staged scripts even when contents already match.
+
+    -n, --dry-run
+        Emit the staging plan without copying files.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage add hooks --hook pre-commit,prepare-commit-msg
+        Stage every executable script beneath hooks/ that targets either listed
+        hook.
+
+    githooks stage add custom-scripts --name 'security-*'
+        Stage only scripts whose basenames begin with `security-`.
+
+SEE ALSO
+    githooks stage remove, githooks stage list, README section “Adding Hook Parts”
+HELP
+}
+
+print_stage_remove_usage() {
+  cat <<'HELP'
+NAME
+    githooks stage remove - Delete staged scripts for a specific hook.
+
+SYNOPSIS
+    githooks stage remove HOOK [OPTIONS]
+
+DESCRIPTION
+    Removes staged scripts from .githooks/HOOK.d. Provide a specific name (with
+    or without `.sh`) or use --all to clear the hook entirely.
+
+OPTIONS
+    --name PART | --name=PART | --part PART
+        Remove only the named staged script. The `.sh` suffix is optional.
+
+    --all
+        Remove every staged script for HOOK.
+
+    -n, --dry-run
+        Describe deletions without performing them.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage remove pre-commit git-crypt-enforce
+        Remove the git-crypt enforcement script from the pre-commit hook.
+
+    githooks stage remove post-merge --all --dry-run
+        Preview the scripts that would be removed from post-merge.
+
+SEE ALSO
+    githooks stage add, githooks stage list
+HELP
+}
+
+print_stage_list_usage() {
+  cat <<'HELP'
+NAME
+    githooks stage list - Show staged scripts grouped by hook.
+
+SYNOPSIS
+    githooks stage list [HOOK]
+
+DESCRIPTION
+    Prints a tabular view of hooks and their staged script names. When a HOOK is
+    provided, the output focuses on that hook; otherwise all hooks with staged
+    scripts are displayed. The command emits a header followed by hook/name rows.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage list
+        Show every staged script across the repository.
+
+    githooks stage list prepare-commit-msg
+        Inspect staged scripts for a single hook.
+
+SEE ALSO
+    githooks hooks list, githooks stage add
+HELP
+}
+
+print_hooks_usage() {
+  cat <<'HELP'
+NAME
+    githooks hooks - Inspect stub coverage and staged parts per hook.
+
+SYNOPSIS
+    githooks hooks [SUBCOMMAND]
+
+DESCRIPTION
+    Commands under `hooks` reveal which Git hooks have managed stubs and how
+    many staged scripts each hook currently owns.
+
+SUBCOMMANDS
+    list    Emit a table showing stub status and staged script counts.
+    help    Display this manual or a subcommand-specific manual.
+
+SEE ALSO
+    githooks hooks list help
+HELP
+}
+
+print_hooks_list_usage() {
+  cat <<'HELP'
+NAME
+    githooks hooks list - Summarise managed hooks and staged script counts.
+
+SYNOPSIS
+    githooks hooks list [HOOK]
+
+DESCRIPTION
+    For each managed hook, print whether a stub exists and how many parts are
+    staged. Provide a HOOK to narrow the report to a single entry.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks hooks list
+        Review every managed hook and the number of staged scripts.
+
+    githooks hooks list pre-commit
+        Inspect only the pre-commit hook.
+
+SEE ALSO
+    githooks stage list, githooks install
+HELP
+}
+
+print_config_usage() {
+  cat <<'HELP'
+NAME
+    githooks config - Query or update runner-related Git configuration.
+
+SYNOPSIS
+    githooks config [SUBCOMMAND]
+
+DESCRIPTION
+    Provides helpers for inspecting the repository’s Git configuration values
+    that influence hook execution and for updating the hooks-path setting.
+
+SUBCOMMANDS
+    show    Print resolved hooks-path values and derived toolkit paths.
+    set     Update supported configuration keys (currently hooks-path).
+    help    Display this manual or a subcommand-specific manual.
+
+SEE ALSO
+    githooks config show help, githooks config set help
+HELP
+}
+
+print_config_show_usage() {
+  cat <<'HELP'
+NAME
+    githooks config show - Display hook-related configuration values.
+
+SYNOPSIS
+    githooks config show
+
+DESCRIPTION
+    Echoes Git’s core.hooksPath (if set), plus the resolved shared runner and
+    hooks directories. Helpful when diagnosing custom Git configuration.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+SEE ALSO
+    githooks config set, git config core.hooksPath
+HELP
+}
+
+print_config_set_usage() {
+  cat <<'HELP'
+NAME
+    githooks config set - Update supported configuration keys.
+
+SYNOPSIS
+    githooks config set hooks-path PATH
+
+DESCRIPTION
+    Writes the supplied PATH into Git’s core.hooksPath, pointing Git at the
+    shared runner directory. The command echoes the git config invocation before
+    running it, and respects --dry-run when supplied globally.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks config set hooks-path .githooks
+        Direct Git to use the staged runner directory within the repository.
+
+SEE ALSO
+    githooks config show, git config core.hooksPath
+HELP
+}
+
+print_uninstall_usage() {
+  cat <<'HELP'
+NAME
+    githooks uninstall - Remove managed stubs and shared runner artefacts.
+
+SYNOPSIS
+    githooks uninstall [OPTIONS]
+
+DESCRIPTION
+    Deletes the shared runner (.githooks/_runner.sh), its library, and any stubs
+    previously installed in .git/hooks by the toolkit. Files not recognised as
+    managed stubs are left untouched to avoid destroying user-managed hooks.
+
+OPTIONS
+    -n, --dry-run
+        Describe the filesystem removals without executing them.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks uninstall --dry-run
+        Preview which artefacts would be removed.
+
+SEE ALSO
+    githooks install, githooks stage remove
+HELP
+}
+
+compat_warn() {
+  if [ "$#" -ne 1 ]; then
+    return 0
+  fi
+  if [ "${COMPAT_WARNED}" -eq 0 ]; then
+    githooks_log_warn "legacy command alias '$1' detected; prefer modern subcommands"
+  fi
+  COMPAT_WARNED=1
+}
+
+normalise_part_name() {
+  if [ "$#" -ne 1 ]; then
+    githooks_die "normalise_part_name expects script name"
+  fi
+  _norm_name=$1
+  case "${_norm_name}" in
+    */*)
+      _norm_name=$(basename "${_norm_name}")
+      ;;
+  esac
+  if [ -z "${_norm_name}" ]; then
+    githooks_die "hook part name required"
+  fi
+  case "${_norm_name}" in
+    *.sh)
+      printf '%s\n' "${_norm_name}"
+      ;;
+    *)
+      printf '%s.sh\n' "${_norm_name}"
+      ;;
+  esac
+}
+
+stage_remove_part() {
+  if [ "$#" -ne 2 ]; then
+    githooks_die "remove requires hook and part name"
+  fi
+  _remove_hook=$1
+  _remove_name=$(normalise_part_name "$2")
+  _remove_dir=$(githooks_parts_dir "${_remove_hook}")
+  _remove_path="${_remove_dir%/}/${_remove_name}"
+  if [ ! -f "${_remove_path}" ]; then
+    githooks_die "no staged part ${_remove_name} for hook ${_remove_hook}"
+  fi
+  maybe_run "remove ${_remove_path}" rm -f "${_remove_path}"
+}
+
+stage_remove_all_parts() {
+  if [ "$#" -ne 1 ]; then
+    githooks_die "remove --all requires hook name"
+  fi
+  _remove_hook=$1
+  _remove_dir=$(githooks_parts_dir "${_remove_hook}")
+  if [ ! -d "${_remove_dir}" ]; then
+    githooks_die "no staged parts directory for hook ${_remove_hook}"
+  fi
+  remove_any=0
+  stage_parts=$(githooks_list_parts "${_remove_hook}")
+  if [ -n "${stage_parts}" ]; then
+    stage_newline=$(printf '\n_')
+    stage_old_ifs=$IFS
+    IFS=${stage_newline%_}
+    set -f
+    for stage_part in ${stage_parts}; do
+      remove_any=1
+      stage_remove_part "${_remove_hook}" "$(basename "${stage_part}")"
+    done
+    set +f
+    IFS=${stage_old_ifs}
+  fi
+  if [ "${remove_any}" -eq 0 ]; then
+    githooks_log_info "no parts staged for ${_remove_hook}"
+  fi
+}
+
+stage_list_parts_for_hook() {
+  if [ "$#" -ne 1 ]; then
+    githooks_die "list requires hook name"
+  fi
+  _list_hook=$1
+  _list_parts=$(githooks_list_parts "${_list_hook}")
+  if [ -z "${_list_parts}" ]; then
+    return 1
+  fi
+  stage_newline=$(printf '\n_')
+  stage_old_ifs=$IFS
+  IFS=${stage_newline%_}
+  set -f
+  for _list_part in ${_list_parts}; do
+    if [ "${STAGE_LIST_HEADER_SHOWN}" -eq 0 ]; then
+      printf '%s\t%s\n' 'HOOK' 'PART'
+      STAGE_LIST_HEADER_SHOWN=1
+    fi
+    STAGE_LIST_PRINTED=1
+    printf '%s\t%s\n' "${_list_hook}" "$(basename "${_list_part}")"
+  done
+  set +f
+  IFS=${stage_old_ifs}
+  return 0
+}
+
+stage_list_all_parts() {
+  STAGE_LIST_PRINTED=0
+  STAGE_LIST_HEADER_SHOWN=0
+  stage_root=$(githooks_shared_root)
+  if [ ! -d "${stage_root}" ]; then
+    githooks_log_info "no hook parts staged"
+    return 0
+  fi
+  stage_dirs=$(LC_ALL=C find "${stage_root}" -mindepth 1 -maxdepth 1 -type d -name '*.d' -print 2>/dev/null | LC_ALL=C sort)
+  if [ -z "${stage_dirs}" ]; then
+    githooks_log_info "no hook parts staged"
+    return 0
+  fi
+  stage_newline=$(printf '\n_')
+  stage_old_ifs=$IFS
+  IFS=${stage_newline%_}
+  set -f
+  for stage_dir in ${stage_dirs}; do
+    stage_hook_name=$(basename "${stage_dir}")
+    stage_hook_name=${stage_hook_name%.d}
+    stage_list_parts_for_hook "${stage_hook_name}"
+  done
+  set +f
+  IFS=${stage_old_ifs}
+  if [ "${STAGE_LIST_PRINTED}" -eq 0 ]; then
+    githooks_log_info "no hook parts staged"
+  fi
+}
+
+hooks_list_summary() {
+  hooks_target="${hooks_root%/}"
+  shared_target=$(githooks_shared_root)
+  HOOK_SUMMARY_NAMES=""
+  hook_filter=""
+  if [ "$#" -gt 0 ]; then
+    hook_filter=$1
+  fi
+
+  if [ -d "${shared_target}" ]; then
+    hooks_dirs=$(LC_ALL=C find "${shared_target}" -mindepth 1 -maxdepth 1 -type d -name '*.d' -print 2>/dev/null)
+    if [ -n "${hooks_dirs}" ]; then
+      stage_newline=$(printf '\n_')
+      stage_old_ifs=$IFS
+      IFS=${stage_newline%_}
+      set -f
+      for hook_dir in ${hooks_dirs}; do
+        hook_name=$(basename "${hook_dir}")
+        hook_name=${hook_name%.d}
+        if [ -z "${hook_filter}" ] || [ "${hook_filter}" = "${hook_name}" ]; then
+          stage_append_unique HOOK_SUMMARY_NAMES "${hook_name}"
+        fi
+      done
+      set +f
+      IFS=${stage_old_ifs}
+    fi
+  fi
+
+  if [ -d "${hooks_target}" ]; then
+    stub_files=$(LC_ALL=C find "${hooks_target}" -mindepth 1 -maxdepth 1 -type f -perm -u+x -print 2>/dev/null)
+    if [ -n "${stub_files}" ]; then
+      stage_newline=$(printf '\n_')
+      stage_old_ifs=$IFS
+      IFS=${stage_newline%_}
+      set -f
+      for stub_file in ${stub_files}; do
+        stub_name=$(basename "${stub_file}")
+        if [ -z "${hook_filter}" ] || [ "${hook_filter}" = "${stub_name}" ]; then
+          stage_append_unique HOOK_SUMMARY_NAMES "${stub_name}"
+        fi
+      done
+      set +f
+      IFS=${stage_old_ifs}
+    fi
+  fi
+
+  if [ -n "${hook_filter}" ]; then
+    stage_append_unique HOOK_SUMMARY_NAMES "${hook_filter}"
+  fi
+
+  if [ -z "${HOOK_SUMMARY_NAMES}" ]; then
+    githooks_log_info "no hooks detected"
+    return 0
+  fi
+
+  set -f
+  HOOK_SUMMARY_SORTED=$(printf '%s\n' ${HOOK_SUMMARY_NAMES} | LC_ALL=C sort)
+  set +f
+  stage_newline=$(printf '\n_')
+  stage_old_ifs=$IFS
+  IFS=${stage_newline%_}
+  set -f
+  printf '%s\n' 'HOOK                STUB  PARTS'
+  for hook_name in ${HOOK_SUMMARY_SORTED}; do
+    hook_stub_path="${hooks_target}/${hook_name}"
+    if [ -f "${hook_stub_path}" ]; then
+      hook_stub_status='yes'
+    else
+      hook_stub_status='no'
+    fi
+    parts_count=0
+    hook_parts=$(githooks_list_parts "${hook_name}")
+    if [ -n "${hook_parts}" ]; then
+      stage_newline=$(printf '\n_')
+      stage_inner_old_ifs=$IFS
+      IFS=${stage_newline%_}
+      set -f
+      for hook_part in ${hook_parts}; do
+        parts_count=$((parts_count + 1))
+      done
+      set +f
+      IFS=${stage_inner_old_ifs}
+    fi
+    printf '%-18s %-4s  %d\n' "${hook_name}" "${hook_stub_status}" "${parts_count}"
+  done
+  set +f
+  IFS=${stage_old_ifs}
+}
+
+config_show() {
+  hooks_path=$(git config --path --get core.hooksPath 2>/dev/null || true)
+  githooks_log_info "core.hooksPath=${hooks_path:-<unset>}"
+  githooks_log_info "shared_root=$(githooks_shared_root)"
+  githooks_log_info "hooks_root=$(githooks_hooks_root)"
+}
+
+config_set() {
+  if [ "$#" -lt 2 ]; then
+    githooks_die "config set requires key and value"
+  fi
+  cfg_key=$1
+  cfg_value=$2
+  case "${cfg_key}" in
+    hooks-path)
+      maybe_run "set core.hooksPath ${cfg_value}" git config core.hooksPath "${cfg_value}"
+      ;;
+    *)
+      githooks_die "unknown config key: ${cfg_key}"
+      ;;
+  esac
+}
 
 shared_root=$(githooks_shared_root)
 hooks_root=$(githooks_hooks_root)
@@ -1009,30 +1582,15 @@ else
   stub_runner='$(git rev-parse --show-toplevel)/.githooks/_runner.sh'
 fi
 
-case "${MODE}" in
-  install)
-    install_runner
-    for hook in ${HOOKS}; do
-      create_parts_dir "${hook}"
-      write_stub "${hook}"
-    done
-    githooks_log_info "installation complete"
-    ;;
-  uninstall)
-    for hook in ${HOOKS}; do
-      uninstall_stub "${hook}"
-    done
-    remove_runner_files
-    githooks_log_info "uninstallation complete"
-    ;;
-  stage)
-    if run_stage; then
-    exit 0
+cmd_install() {
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      help)
+        print_install_usage
+        return 0
+        ;;
+    esac
   fi
-  exit 1
-}
-
-cmd_init() {
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --hooks|-H)
@@ -1048,7 +1606,7 @@ cmd_init() {
         HOOKS_WERE_EXPLICIT=1
         shift
         ;;
-      --all-hooks|-A)
+      --all-hooks|-A|--all)
         USE_ALL=1
         HOOKS_WERE_EXPLICIT=1
         shift
@@ -1062,11 +1620,22 @@ cmd_init() {
         shift
         ;;
       -h|--help)
-        print_usage
-        exit 0
+        print_install_usage
+        return 0
+        ;;
+      help)
+        print_install_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for install: $1"
         ;;
       *)
-        githooks_die "unknown option for init: $1"
+        githooks_die "unexpected argument for install: $1"
         ;;
     esac
   done
@@ -1083,23 +1652,40 @@ cmd_init() {
   githooks_log_info "installation complete"
 }
 
-cmd_add() {
+cmd_stage_add() {
   if [ "$#" -eq 0 ]; then
-    githooks_die "add command requires a source"
+    githooks_die "stage add requires a source directory"
   fi
+  case "$1" in
+    -h|--help|help)
+      print_stage_add_usage
+      return 0
+      ;;
+  esac
   stage_add_source "$1"
   shift
   while [ "$#" -gt 0 ]; do
     case "$1" in
-      --for-hook)
+      --for-hook|--hook)
         if [ "$#" -lt 2 ]; then
-          githooks_die "--for-hook requires an argument"
+          githooks_die "--hook requires an argument"
         fi
         stage_add_hook "$2"
         shift 2
         ;;
-      --for-hook=*)
+      --for-hook=*|--hook=*)
         stage_add_hook "${1#*=}"
+        shift
+        ;;
+      --name|--part)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--name requires an argument"
+        fi
+        stage_add_name "$2"
+        shift 2
+        ;;
+      --name=*|--part=*)
+        stage_add_name "${1#*=}"
         shift
         ;;
       --dry-run|-n)
@@ -1110,37 +1696,396 @@ cmd_add() {
         FORCE=1
         shift
         ;;
-      -h|--help)
-        print_usage
-        exit 0
+      -h|--help|help)
+        print_stage_add_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for stage add: $1"
         ;;
       *)
-        githooks_die "unknown option for add: $1"
+        githooks_die "unexpected argument for stage add: $1"
         ;;
     esac
   done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for stage add: $1"
+  fi
   run_stage
 }
 
-cmd_remove() {
-  if [ "$#" -ne 2 ]; then
-    githooks_die "remove command requires hook and script name"
+cmd_stage_remove() {
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      -h|--help|help)
+        print_stage_remove_usage
+        return 0
+        ;;
+    esac
   fi
-  remove_hook_part "$1" "$2"
+  if [ "$#" -eq 0 ]; then
+    githooks_die "stage remove requires a hook name"
+  fi
+  stage_remove_hook=$1
+  shift
+  stage_remove_all=0
+  stage_remove_name=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --name|--part)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--name requires an argument"
+        fi
+        stage_remove_name=$2
+        shift 2
+        ;;
+      --name=*|--part=*)
+        stage_remove_name=${1#*=}
+        shift
+        ;;
+      --all)
+        stage_remove_all=1
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      -h|--help|help)
+        print_stage_remove_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for stage remove: $1"
+        ;;
+      *)
+        if [ -z "${stage_remove_name}" ]; then
+          stage_remove_name=$1
+          shift
+        else
+          githooks_die "unexpected argument for stage remove: $1"
+        fi
+        ;;
+    esac
+  done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for stage remove: $1"
+  fi
+  if [ "${stage_remove_all}" -eq 1 ] && [ -n "${stage_remove_name}" ]; then
+    githooks_die "cannot combine --all with --name"
+  fi
+  if [ "${stage_remove_all}" -eq 1 ]; then
+    stage_remove_all_parts "${stage_remove_hook}"
+    return 0
+  fi
+  if [ -z "${stage_remove_name}" ]; then
+    githooks_die "stage remove requires --name or positional script name"
+  fi
+  stage_remove_part "${stage_remove_hook}" "${stage_remove_name}"
+}
+
+cmd_stage_list() {
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      -h|--help|help)
+        print_stage_list_usage
+        return 0
+        ;;
+    esac
+  fi
+  stage_list_hook=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h|--help|help)
+        print_stage_list_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for stage list: $1"
+        ;;
+      *)
+        if [ -n "${stage_list_hook}" ]; then
+          githooks_die "stage list accepts at most one hook"
+        fi
+        stage_list_hook=$1
+        shift
+        ;;
+    esac
+  done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for stage list: $1"
+  fi
+  STAGE_LIST_HEADER_SHOWN=0
+  STAGE_LIST_PRINTED=0
+  if [ -n "${stage_list_hook}" ]; then
+    if ! stage_list_parts_for_hook "${stage_list_hook}"; then
+      githooks_log_info "no hook parts staged for ${stage_list_hook}"
+    fi
+    return 0
+  fi
+  stage_list_all_parts
+}
+
+cmd_stage() {
+  if [ "$#" -eq 0 ]; then
+    cmd_stage_list
+    return 0
+  fi
+  stage_subcommand=$1
+  shift
+  case "${stage_subcommand}" in
+    add)
+      cmd_stage_add "$@"
+      ;;
+    remove)
+      cmd_stage_remove "$@"
+      ;;
+    list)
+      cmd_stage_list "$@"
+      ;;
+    -h|--help|help)
+      if [ "$#" -eq 0 ]; then
+        print_stage_usage
+        return 0
+      fi
+      case "$1" in
+        add)
+          shift
+          print_stage_add_usage
+          ;;
+        remove)
+          shift
+          print_stage_remove_usage
+          ;;
+        list)
+          shift
+          print_stage_list_usage
+          ;;
+        *)
+          githooks_die "unknown stage help topic: $1"
+          ;;
+      esac
+      ;;
+    *)
+      githooks_die "unknown stage subcommand: ${stage_subcommand}"
+      ;;
+  esac
+}
+
+cmd_hooks_list() {
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      -h|--help|help)
+        print_hooks_list_usage
+        return 0
+        ;;
+    esac
+  fi
+  hook_filter=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -h|--help|help)
+        print_hooks_list_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for hooks list: $1"
+        ;;
+      *)
+        if [ -n "${hook_filter}" ]; then
+          githooks_die "hooks list accepts at most one hook name"
+        fi
+        hook_filter=$1
+        shift
+        ;;
+    esac
+  done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for hooks list: $1"
+  fi
+  if [ -n "${hook_filter}" ]; then
+    hooks_list_summary "${hook_filter}"
+  else
+    hooks_list_summary
+  fi
+}
+
+cmd_hooks() {
+  if [ "$#" -eq 0 ]; then
+    hooks_list_summary
+    return 0
+  fi
+  case "$1" in
+    list)
+      shift
+      cmd_hooks_list "$@"
+      ;;
+    -h|--help|help)
+      shift
+      if [ "$#" -eq 0 ]; then
+        print_hooks_usage
+        return 0
+      fi
+      case "$1" in
+        list)
+          print_hooks_list_usage
+          ;;
+        *)
+          githooks_die "unknown hooks help topic: $1"
+          ;;
+      esac
+      ;;
+    *)
+      githooks_die "unknown hooks subcommand: $1"
+      ;;
+  esac
+}
+
+cmd_config() {
+  if [ "$#" -eq 0 ]; then
+    config_show
+    return 0
+  fi
+  case "$1" in
+    help|-h|--help)
+      shift
+      if [ "$#" -eq 0 ]; then
+        print_config_usage
+        return 0
+      fi
+      case "$1" in
+        show)
+          print_config_show_usage
+          ;;
+        set)
+          print_config_set_usage
+          ;;
+        *)
+          githooks_die "unknown config help topic: $1"
+          ;;
+      esac
+      return 0
+      ;;
+    show)
+      shift
+      if [ "$#" -gt 0 ] && [ "$1" = "help" ]; then
+        print_config_show_usage
+        return 0
+      fi
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          -h|--help|help)
+            print_config_show_usage
+            return 0
+            ;;
+          --)
+            shift
+            break
+            ;;
+          -*)
+            githooks_die "unknown option for config show: $1"
+            ;;
+          *)
+            githooks_die "unexpected argument for config show: $1"
+            ;;
+        esac
+      done
+      if [ "$#" -gt 0 ]; then
+        githooks_die "unexpected argument for config show: $1"
+      fi
+      config_show
+      ;;
+    set)
+      shift
+      if [ "$#" -gt 0 ] && [ "$1" = "help" ]; then
+        print_config_set_usage
+        return 0
+      fi
+      if [ "$#" -lt 2 ]; then
+        githooks_die "config set requires key and value"
+      fi
+      cfg_key=$1
+      cfg_value=$2
+      shift 2
+      while [ "$#" -gt 0 ]; do
+        case "$1" in
+          -h|--help|help)
+            print_config_set_usage
+            return 0
+            ;;
+          --)
+            shift
+            break
+            ;;
+          -*)
+            githooks_die "unknown option for config set: $1"
+            ;;
+          *)
+            githooks_die "unexpected argument for config set: $1"
+            ;;
+        esac
+      done
+      if [ "$#" -gt 0 ]; then
+        githooks_die "unexpected argument for config set: $1"
+      fi
+      config_set "${cfg_key}" "${cfg_value}"
+      ;;
+    *)
+      githooks_die "unknown config subcommand: $1"
+      ;;
+  esac
 }
 
 cmd_uninstall() {
-    while [ "$#" -gt 0 ]; do
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      -h|--help|help)
+        print_uninstall_usage
+        return 0
+        ;;
+    esac
+  fi
+  while [ "$#" -gt 0 ]; do
     case "$1" in
       --dry-run|-n)
         DRY_RUN=1
         shift
         ;;
-      *)
+      -h|--help|help)
+        print_uninstall_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
         githooks_die "unknown option for uninstall: $1"
+        ;;
+      *)
+        githooks_die "unexpected argument for uninstall: $1"
         ;;
     esac
   done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for uninstall: $1"
+  fi
   for hook in ${HOOKS}; do
     uninstall_stub "${hook}"
   done
@@ -1149,35 +2094,167 @@ cmd_uninstall() {
 }
 
 cmd_help() {
-  print_usage
+  if [ "$#" -eq 0 ]; then
+    print_usage
+    return 0
+  fi
+  topic=$1
+  shift
+  case "${topic}" in
+    install)
+      print_install_usage
+      ;;
+    stage)
+      if [ "$#" -eq 0 ]; then
+        print_stage_usage
+      else
+        case "$1" in
+          add)
+            print_stage_add_usage
+            ;;
+          remove)
+            print_stage_remove_usage
+            ;;
+          list)
+            print_stage_list_usage
+            ;;
+          *)
+            githooks_die "unknown stage help topic: $1"
+            ;;
+        esac
+      fi
+      ;;
+    hooks)
+      if [ "$#" -eq 0 ]; then
+        print_hooks_usage
+      else
+        case "$1" in
+          list)
+            print_hooks_list_usage
+            ;;
+          *)
+            githooks_die "unknown hooks help topic: $1"
+            ;;
+        esac
+      fi
+      ;;
+    config)
+      if [ "$#" -eq 0 ]; then
+        print_config_usage
+      else
+        case "$1" in
+          show)
+            print_config_show_usage
+            ;;
+          set)
+            print_config_set_usage
+            ;;
+          *)
+            githooks_die "unknown config help topic: $1"
+            ;;
+        esac
+      fi
+      ;;
+    uninstall)
+      print_uninstall_usage
+      ;;
+    help)
+      print_usage
+      ;;
+    *)
+      githooks_die "unknown help topic: ${topic}"
+      ;;
+  esac
 }
 
 cmd_unknown() {
   githooks_die "unknown command: $1"
 }
 
+GLOBAL_SHOW_HELP=0
+GLOBAL_SHOW_VERSION=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h|--help)
+      GLOBAL_SHOW_HELP=1
+      shift
+      ;;
+    -V|--version)
+      GLOBAL_SHOW_VERSION=1
+      shift
+      ;;
+    -n|--dry-run)
+      DRY_RUN=1
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    -*)
+      break
+      ;;
+    *)
+      break
+      ;;
+  esac
+done
+
+if [ "${GLOBAL_SHOW_VERSION}" -eq 1 ]; then
+  printf 'githooks-runner %s\n' "${TOOLKIT_VERSION}"
+  if [ "$#" -eq 0 ] && [ "${GLOBAL_SHOW_HELP}" -eq 0 ]; then
+    exit 0
+  fi
+fi
+
+if [ "${GLOBAL_SHOW_HELP}" -eq 1 ] && [ "$#" -eq 0 ]; then
+  print_usage
+  exit 0
+fi
+
 if [ "$#" -eq 0 ]; then
-  COMMAND="init"
+  COMMAND="install"
 else
   COMMAND=$1
   shift
 fi
 
+if [ "${GLOBAL_SHOW_HELP}" -eq 1 ]; then
+  cmd_help "${COMMAND}" "$@"
+  exit 0
+fi
+
 case "${COMMAND}" in
-  init)
-    cmd_init "$@"
+  install)
+    cmd_install "$@"
     ;;
-  add)
-    cmd_add "$@"
+  stage)
+    cmd_stage "$@"
     ;;
-  remove)
-    cmd_remove "$@"
+  hooks)
+    cmd_hooks "$@"
+    ;;
+  config)
+    cmd_config "$@"
     ;;
   uninstall)
     cmd_uninstall "$@"
     ;;
   help)
     cmd_help "$@"
+    ;;
+  init)
+    compat_warn "init"
+    cmd_install "$@"
+    ;;
+  add)
+    compat_warn "add"
+    cmd_stage_add "$@"
+    ;;
+  remove)
+    compat_warn "remove"
+    cmd_stage_remove "$@"
     ;;
   *)
     cmd_unknown "${COMMAND}"

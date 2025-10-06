@@ -1,5 +1,5 @@
 #!/bin/sh
-# TAP tests covering CLI ergonomics for install.sh stage functionality.
+# TAP tests covering CLI ergonomics for install.sh subcommand-based staging (add).
 
 set -eu
 
@@ -67,7 +67,7 @@ cleanup_and_return() {
   return "$cleanup_status"
 }
 
-test_stage_short_flag_with_value() {
+test_add_examples_sources_parts() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -83,8 +83,8 @@ test_stage_short_flag_with_value() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" -s examples; then
-      TEST_FAILURE_DIAG='installer -s examples failed'
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples; then
+      TEST_FAILURE_DIAG='installer add examples failed'
       rc=1
     fi
   fi
@@ -92,7 +92,7 @@ test_stage_short_flag_with_value() {
   if [ "$rc" -eq 0 ]; then
     target="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
     if [ ! -x "$target" ]; then
-      TEST_FAILURE_DIAG='expected pre-commit example was not staged via -s'
+      TEST_FAILURE_DIAG='expected pre-commit example was not staged via add examples'
       rc=1
     fi
   fi
@@ -100,7 +100,7 @@ test_stage_short_flag_with_value() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_stage_space_separated_values() {
+test_add_for_specific_hook_filters() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -116,8 +116,8 @@ test_stage_space_separated_values() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --stage examples --stage hook:pre-commit --stage name:git-crypt-enforce.sh --hooks pre-commit; then
-      TEST_FAILURE_DIAG='installer --stage with space arguments failed'
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit; then
+      TEST_FAILURE_DIAG='installer stage add examples with --hook failed'
       rc=1
     fi
   fi
@@ -125,7 +125,7 @@ test_stage_space_separated_values() {
   if [ "$rc" -eq 0 ]; then
     target="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
     if [ ! -x "$target" ]; then
-      TEST_FAILURE_DIAG='expected staged file missing after repeated --stage'
+      TEST_FAILURE_DIAG='expected staged file missing after stage add with --hook pre-commit'
       rc=1
     fi
   fi
@@ -133,7 +133,7 @@ test_stage_space_separated_values() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_short_dry_run_prevents_changes() {
+test_add_dry_run_prevents_changes() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -149,10 +149,10 @@ test_short_dry_run_prevents_changes() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" -n -s examples; then
+    if ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --dry-run; then
       :
     else
-      TEST_FAILURE_DIAG='installer -n -s examples failed'
+      TEST_FAILURE_DIAG='installer add examples --dry-run failed'
       rc=1
     fi
   fi
@@ -167,7 +167,7 @@ test_short_dry_run_prevents_changes() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_granular_stage_flags() {
+test_add_with_for_hook_filters_sources() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -183,8 +183,8 @@ test_granular_stage_flags() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --stage-source examples --stage-hook pre-commit --stage-name git-crypt-enforce.sh --hooks pre-commit; then
-      TEST_FAILURE_DIAG='granular stage flags command failed'
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit; then
+      TEST_FAILURE_DIAG='stage add with --hook command failed'
       rc=1
     fi
   fi
@@ -196,7 +196,7 @@ test_granular_stage_flags() {
       rc=1
     fi
     if [ -e "$parsed_repo/.githooks/post-merge.d/dependency-sync.sh" ]; then
-      TEST_FAILURE_DIAG='unexpected dependency-sync staged when filtering by name'
+      TEST_FAILURE_DIAG='unexpected dependency-sync staged when filtering by hook pre-commit'
       rc=1
     fi
   fi
@@ -204,7 +204,7 @@ test_granular_stage_flags() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_stage_summary_and_order() {
+test_add_dry_run_emits_plan_summary() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -221,8 +221,8 @@ test_stage_summary_and_order() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --stage-source examples --stage-name dependency-sync.sh --stage-order hook --stage-summary --dry-run >"$summary_file"; then
-      TEST_FAILURE_DIAG='stage summary command failed'
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --dry-run >"$summary_file"; then
+      TEST_FAILURE_DIAG='stage add examples --dry-run summary command failed'
       rc=1
     fi
   fi
@@ -232,30 +232,13 @@ test_stage_summary_and_order() {
     if [ -z "$plan_lines" ]; then
       TEST_FAILURE_DIAG='summary output missing PLAN lines'
       rc=1
-    else
-      first_line=$(printf '%s' "$plan_lines" | head -n1)
-      last_line=$(printf '%s' "$plan_lines" | tail -n1)
-      case "$first_line" in
-        *hook=post-checkout*|*hook=post-commit*|*hook=post-merge*|*hook=post-rewrite*) : ;;
-        *)
-          TEST_FAILURE_DIAG='unexpected first PLAN line ordering'
-          rc=1
-          ;;
-      esac
-      case "$last_line" in
-        *hook=post-commit*|*hook=post-rewrite*|*hook=post-checkout*|*hook=post-merge*) : ;;
-        *)
-          TEST_FAILURE_DIAG='unexpected last PLAN line ordering'
-          rc=1
-          ;;
-      esac
     fi
   fi
 
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_legacy_selector_warning() {
+test_add_no_legacy_warnings() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -272,17 +255,17 @@ test_legacy_selector_warning() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --stage=examples,hook:pre-commit --dry-run >"$log_file" 2>&1; then
+    if ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --dry-run >"$log_file" 2>&1; then
       :
     else
-      TEST_FAILURE_DIAG='legacy selector command failed'
+      TEST_FAILURE_DIAG='stage add examples --dry-run failed'
       rc=1
     fi
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! grep -q 'legacy' "$log_file"; then
-      TEST_FAILURE_DIAG='expected legacy warning missing'
+    if grep -qi 'legacy' "$log_file"; then
+      TEST_FAILURE_DIAG='unexpected legacy warning printed'
       rc=1
     fi
   fi
@@ -290,7 +273,7 @@ test_legacy_selector_warning() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-test_stage_hook_name_csv() {
+test_add_with_csv_hook_filters() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -306,11 +289,8 @@ test_stage_hook_name_csv() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" \
-      --stage-source examples \
-      --stage-hook post-merge,post-rewrite \
-      --stage-name dependency-sync.sh,metadata-apply.sh; then
-      TEST_FAILURE_DIAG='installer with CSV hooks/names failed'
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook post-merge,post-rewrite; then
+      TEST_FAILURE_DIAG='installer add examples with CSV hooks failed'
       rc=1
     fi
   fi
@@ -319,11 +299,12 @@ test_stage_hook_name_csv() {
     post_merge_part="$parsed_repo/.githooks/post-merge.d/dependency-sync.sh"
     post_rewrite_part="$parsed_repo/.githooks/post-rewrite.d/dependency-sync.sh"
     meta_post_merge="$parsed_repo/.githooks/post-merge.d/metadata-apply.sh"
+    meta_post_rewrite="$parsed_repo/.githooks/post-rewrite.d/metadata-apply.sh"
     if [ ! -x "$post_merge_part" ] || [ ! -x "$post_rewrite_part" ]; then
-      TEST_FAILURE_DIAG='CSV hook filter did not stage both hooks'
+      TEST_FAILURE_DIAG='CSV hook filter did not stage dependency-sync for both hooks'
       rc=1
-    elif [ ! -x "$meta_post_merge" ]; then
-      TEST_FAILURE_DIAG='CSV name filter missed metadata apply script'
+    elif [ ! -x "$meta_post_merge" ] || [ ! -x "$meta_post_rewrite" ]; then
+      TEST_FAILURE_DIAG='CSV hook filter missed metadata apply script for one or more hooks'
       rc=1
     fi
   fi
@@ -331,7 +312,339 @@ test_stage_hook_name_csv() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-TOTAL_TESTS=7
+test_add_with_name_filter_selects_single_part() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --name git-crypt-enforce; then
+      TEST_FAILURE_DIAG='stage add with --name git-crypt-enforce failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    target="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
+    if [ ! -x "$target" ]; then
+      TEST_FAILURE_DIAG='name filter did not stage expected part'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    unexpected="$parsed_repo/.githooks/post-merge.d/dependency-sync.sh"
+    if [ -e "$unexpected" ]; then
+      TEST_FAILURE_DIAG='name filter staged unexpected dependency-sync part'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    meta_post_merge="$parsed_repo/.githooks/post-merge.d/metadata-apply.sh"
+    if [ -e "$meta_post_merge" ]; then
+      TEST_FAILURE_DIAG='name filter staged metadata apply despite mismatch'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_add_with_name_glob_matches_multiple_parts() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --name 'metadata-*'; then
+      TEST_FAILURE_DIAG="stage add with --name 'metadata-*' failed"
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    meta_post_merge="$parsed_repo/.githooks/post-merge.d/metadata-apply.sh"
+    meta_post_rewrite="$parsed_repo/.githooks/post-rewrite.d/metadata-apply.sh"
+    if [ ! -x "$meta_post_merge" ] || [ ! -x "$meta_post_rewrite" ]; then
+      TEST_FAILURE_DIAG='glob name filter did not stage metadata apply for expected hooks'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    unexpected="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
+    if [ -e "$unexpected" ]; then
+      TEST_FAILURE_DIAG='glob name filter staged unrelated pre-commit part'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_stage_remove_by_name() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit; then
+      TEST_FAILURE_DIAG='stage add examples --hook pre-commit failed before remove'
+      rc=1
+    fi
+  fi
+
+  part_path="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
+
+  if [ "$rc" -eq 0 ] && [ ! -f "$part_path" ]; then
+    TEST_FAILURE_DIAG='expected staged part missing before removal'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage remove pre-commit git-crypt-enforce; then
+      TEST_FAILURE_DIAG='stage remove command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -f "$part_path" ]; then
+    TEST_FAILURE_DIAG='stage remove did not delete targeted part'
+    rc=1
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_stage_list_outputs_entries() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  list_file="$parsed_repo/list.out"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit; then
+      TEST_FAILURE_DIAG='stage add for list verification failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage list >"$list_file"; then
+      TEST_FAILURE_DIAG='stage list command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q '^HOOK[[:space:]]\{1,\}PART$' "$list_file"; then
+      TEST_FAILURE_DIAG='stage list output missing header'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q '^pre-commit[[:space:]]\{1,\}git-crypt-enforce\.sh$' "$list_file"; then
+      TEST_FAILURE_DIAG='stage list output missing expected entry'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_global_help_and_version() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  version_file="$parsed_repo/version.out"
+  help_file="$parsed_repo/help.out"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --version >"$version_file"; then
+      TEST_FAILURE_DIAG='--version command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q 'githooks-runner' "$version_file"; then
+      TEST_FAILURE_DIAG='--version output missing identifier'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" --help stage >"$help_file"; then
+      TEST_FAILURE_DIAG='--help stage command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q '^NAME' "$help_file"; then
+      TEST_FAILURE_DIAG='--help stage output missing NAME header'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q 'SUBCOMMANDS' "$help_file"; then
+      TEST_FAILURE_DIAG='--help stage output missing subcommand section'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_hooks_list_specific() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  hooks_file="$parsed_repo/hooks.out"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit; then
+      TEST_FAILURE_DIAG='stage add for hooks list failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" hooks list pre-commit >"$hooks_file"; then
+      TEST_FAILURE_DIAG='hooks list pre-commit command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q '^HOOK' "$hooks_file"; then
+      TEST_FAILURE_DIAG='hooks list output missing header'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q '^pre-commit' "$hooks_file"; then
+      TEST_FAILURE_DIAG='hooks list output missing target hook'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_stage_help_subcommands() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  help_stage_add="$parsed_repo/help-stage-add.out"
+  help_stage_add_arg="$parsed_repo/help-stage-add-arg.out"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage help add >"$help_stage_add"; then
+      TEST_FAILURE_DIAG='stage help add command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q 'githooks stage add - Copy hook parts' "$help_stage_add"; then
+      TEST_FAILURE_DIAG='stage help add output missing MAN-style heading'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add help >"$help_stage_add_arg"; then
+      TEST_FAILURE_DIAG='stage add help invocation failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! grep -q 'OPTIONS' "$help_stage_add_arg"; then
+      TEST_FAILURE_DIAG='stage add help output missing OPTIONS section'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+TOTAL_TESTS=14
 
 tap_plan "$TOTAL_TESTS"
 
@@ -347,13 +660,20 @@ run_test() {
   TEST_FAILURE_DIAG=''
 }
 
-run_test 'stage short flag accepts separate value' test_stage_short_flag_with_value
-run_test 'multiple --stage arguments combine selectors' test_stage_space_separated_values
-run_test 'short dry-run flag avoids filesystem changes' test_short_dry_run_prevents_changes
-run_test 'granular stage flags filter sources/hooks/names' test_granular_stage_flags
-run_test 'stage summary honours ordering requests' test_stage_summary_and_order
-run_test 'legacy comma selectors emit warning' test_legacy_selector_warning
-run_test 'CSV hook/name selectors expand as expected' test_stage_hook_name_csv
+run_test 'stage add examples sources parts' test_add_examples_sources_parts
+run_test 'stage add for specific hook filters examples' test_add_for_specific_hook_filters
+run_test 'stage add --dry-run avoids filesystem changes' test_add_dry_run_prevents_changes
+run_test 'stage add with --hook filters sources' test_add_with_for_hook_filters_sources
+run_test 'stage add --dry-run emits plan summary lines' test_add_dry_run_emits_plan_summary
+run_test 'stage add interface does not print legacy warnings' test_add_no_legacy_warnings
+run_test 'stage add with CSV hooks stages matching examples' test_add_with_csv_hook_filters
+run_test 'stage add with --name filters to one part' test_add_with_name_filter_selects_single_part
+run_test 'stage add with glob name filter stages matching scripts' test_add_with_name_glob_matches_multiple_parts
+run_test 'stage remove accepts bare names' test_stage_remove_by_name
+run_test 'stage list prints header and entries' test_stage_list_outputs_entries
+run_test 'global help and version flags respond' test_global_help_and_version
+run_test 'hooks list pre-commit shows summary' test_hooks_list_specific
+run_test 'stage help supports MAN output' test_stage_help_subcommands
 
 diag "Pass=${PASS} Fail=${FAIL} Total=$((PASS+FAIL))"
 if [ "$FAIL" -eq 0 ]; then

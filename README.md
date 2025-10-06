@@ -67,16 +67,16 @@ git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
 
 ### 2. Install the Hooks
 
-Run the installer to set up the hooks in your repository:
+Run the installer to set up stubs and the shared runner:
 
 ```bash
-.githooks/install.sh
+.githooks/install.sh install
 ```
 
-This will install a curated set of hooks by default. You can also choose to install specific hooks using the `init` command with the `--hooks` flag:
+By default this installs a curated subset of Git hooks. To explicitly control which hooks receive managed stubs, pass a comma-separated list:
 
 ```bash
-.githooks/install.sh init --hooks pre-commit,post-merge
+.githooks/install.sh install --hooks pre-commit,post-merge
 ```
 
 To see what was installed, you can run:
@@ -84,6 +84,19 @@ To see what was installed, you can run:
 ```bash
 ls .git/hooks
 ls .githooks
+```
+
+You can inspect command-specific help at any time, for example:
+
+```bash
+.githooks/install.sh --help stage
+```
+
+The toolkit also provides MAN-style manuals via subcommands, which surface
+in-depth descriptions and examples:
+
+```bash
+.githooks/install.sh stage help add
 ```
 
 ### 3. Add Your First Hook Part
@@ -131,16 +144,22 @@ There are two ways to tell the installer which hook a script belongs to:
 
 2. **Directory Structure:** Place your script in a directory named after the hook. For example, a script placed in `hooks/pre-commit/` will be automatically associated with the `pre-commit` hook.
 
-Then, you can run the installer with the `add` command:
+Then, you can stage parts with the `stage add` subcommand:
 
 ```bash
-.githooks/install.sh add <your-scripts-directory>
+.githooks/install.sh stage add <your-scripts-directory>
 ```
 
 You can also add the included examples:
 
 ```bash
-.githooks/install.sh add examples
+.githooks/install.sh stage add examples
+```
+
+Limit staging to one or more filenames with `--name`. The filter accepts shell-style globs and automatically matches `.sh` extensions:
+
+```bash
+.githooks/install.sh stage add examples --name 'metadata-*'
 ```
 
 ### Creating and Installing Your Own Hooks
@@ -165,13 +184,63 @@ Then, you would make the script executable:
 chmod +x hooks/pre-push/10-run-tests.sh
 ```
 
-Finally, you would run the installer's `add` command:
+Finally, you would stage the directory:
 
 ```bash
-.githooks/install.sh add hooks
+.githooks/install.sh stage add hooks
 ```
 
 This will copy your script to `.githooks/pre-push.d/10-run-tests.sh`, and it will be executed automatically before every push.
+
+### Managing Staged Parts
+
+List everything that is currently staged:
+
+```bash
+.githooks/install.sh stage list
+```
+
+You can scope the listing to a single hook:
+
+```bash
+.githooks/install.sh stage list pre-commit
+```
+
+To remove a specific part, provide the hook and name (the `.sh` suffix is optional):
+
+```bash
+.githooks/install.sh stage remove pre-commit git-crypt-enforce
+```
+
+To clear every part for a hook, combine the hook with `--all`:
+
+```bash
+.githooks/install.sh stage remove pre-commit --all
+```
+
+For a high-level summary of hooks, stubs, and part counts, run:
+
+```bash
+.githooks/install.sh hooks list
+```
+
+All of these commands accept `-n/--dry-run` so you can preview actions before making changes.
+
+### Inspecting and Updating Configuration
+
+Use `config show` to review derived paths (including any Git `core.hooksPath` overrides):
+
+```bash
+.githooks/install.sh config show
+```
+
+If you need to relocate the hooks path, point Git at the shared runner directory:
+
+```bash
+.githooks/install.sh config set hooks-path .githooks
+```
+
+The installer will emit the Git commands it runs, and you can combine these subcommands with `--dry-run` during experimentation.
 
 ### Available Commands and Flags
 
@@ -179,25 +248,29 @@ The `install.sh` script provides several commands to customize its behavior:
 
 | Command | Description |
 |---|---|
-| `init` | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, and `--force`. |
-| `add SOURCE` | Add a hook script from a source directory. Supports `--for-hook`. |
-| `remove HOOK SCRIPT_NAME` | Remove a hook script. |
+| `install` | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, and `--force`. |
+| `stage add SOURCE` | Copy hook parts from a source directory. Supports `--hook` (alias: `--for-hook`), `--name` (globs, extension optional), `--force`, and `--dry-run`. |
+| `stage remove HOOK [--name PART \| --all]` | Remove one part by name (extension optional) or purge all parts for a hook. |
+| `stage list [HOOK]` | Show staged parts for all hooks or a specific hook. |
+| `hooks list [HOOK]` | Summarize installed stubs and staged parts. |
+| `config show` / `config set hooks-path PATH` | Inspect or update toolkit configuration. |
+| `help [COMMAND [SUBCOMMAND]]` | Display MAN-style manuals for commands and subcommands. |
 | `uninstall` | Remove runner artifacts and managed stubs. |
-| `help` | Show the help message. |
 
 **Global Flags:**
 
 | Flag | Description |
 |---|---|
 | `-n`, `--dry-run` | Print planned actions without touching the filesystem. |
-| `-h`, `--help` | Show the help message. |
+| `-h`, `--help` | Show the global help message. You can also target subcommands (e.g. `--help stage`). |
+| `-V`, `--version` | Print the toolkit version. |
 
 ### Provided Examples
 
-The toolkit comes with several examples in the `examples/` directory. You can add them using the `add` command:
+The toolkit comes with several examples in the `examples/` directory. You can stage them with:
 
 ```bash
-.githooks/install.sh add examples
+.githooks/install.sh stage add examples
 ```
 
 - **`dependency-sync.sh`**: Automatically runs `npm install`, `bundle install`, etc., when dependency files change.

@@ -128,7 +128,7 @@ ghr_install_runner() {
   ghr_home=$2
   ghr_installer=$3
   ghr_hooks=$4
-  ghr_in_repo "${ghr_repo}" "${ghr_home}" "${ghr_installer}" --hooks "${ghr_hooks}"
+  ghr_in_repo "${ghr_repo}" "${ghr_home}" "${ghr_installer}" install --hooks "${ghr_hooks}"
 }
 
 ghr_write_part() {
