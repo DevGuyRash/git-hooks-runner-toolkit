@@ -77,7 +77,7 @@ The JSON schema mirrors the YAML structure.
 Set `WATCH_INLINE_RULES` (or `WATCH_INLINE_RULES_DEFAULT`) to define rules
 without a file. Blocks are separated by blank lines:
 
-```
+```bash
 name=docs build
 patterns=docs/**/*.md,docs/**/*.yaml
 commands=./scripts/build-docs
