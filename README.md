@@ -73,10 +73,10 @@ Run the installer to set up the hooks in your repository:
 .githooks/install.sh
 ```
 
-This will install a curated set of hooks by default. You can also choose to install specific hooks using the `--hooks` flag:
+This will install a curated set of hooks by default. You can also choose to install specific hooks using the `init` command with the `--hooks` flag:
 
 ```bash
-.githooks/install.sh --hooks pre-commit,post-merge
+.githooks/install.sh init --hooks pre-commit,post-merge
 ```
 
 To see what was installed, you can run:
@@ -117,9 +117,9 @@ Now, whenever you make a commit, this script will run automatically.
 
 ## Advanced Usage
 
-### Staging Hook Parts
+### Adding Hook Parts
 
-The installer can automatically "stage" hook parts for you. This means it will copy executable scripts from a source directory to the correct `.githooks/<hook>.d/` directory.
+The installer can automatically add hook parts for you from a source directory.
 
 There are two ways to tell the installer which hook a script belongs to:
 
@@ -131,21 +131,21 @@ There are two ways to tell the installer which hook a script belongs to:
 
 2. **Directory Structure:** Place your script in a directory named after the hook. For example, a script placed in `hooks/pre-commit/` will be automatically associated with the `pre-commit` hook.
 
-Then, you can run the installer with the `--stage-source` flag:
+Then, you can run the installer with the `add` command:
 
 ```bash
-.githooks/install.sh --stage-source <your-scripts-directory>
+.githooks/install.sh add <your-scripts-directory>
 ```
 
-You can also stage the included examples:
+You can also add the included examples:
 
 ```bash
-.githooks/install.sh --stage-source examples
+.githooks/install.sh add examples
 ```
 
 ### Creating and Installing Your Own Hooks
 
-You can easily create and install your own custom hooks. The recommended way to do this is to place your hook scripts in the `hooks/` directory, and then use the `--stage-source hooks` flag to install them.
+You can easily create and install your own custom hooks. The recommended way to do this is to place your hook scripts in the `hooks/` directory, and then use the `add` command to install them.
 
 For example, let's say you want to create a `pre-push` hook that runs your test suite. You would create a file named `hooks/pre-push/10-run-tests.sh` with the following content:
 
@@ -165,36 +165,41 @@ Then, you would make the script executable:
 chmod +x hooks/pre-push/10-run-tests.sh
 ```
 
-Finally, you would run the installer with the `--stage-source hooks` flag:
+Finally, you would run the installer's `add` command:
 
 ```bash
-.githooks/install.sh --stage-source hooks
+.githooks/install.sh add hooks
 ```
 
 This will copy your script to `.githooks/pre-push.d/10-run-tests.sh`, and it will be executed automatically before every push.
 
-### Available Flags
+### Available Commands and Flags
 
-The `install.sh` script provides several flags to customize its behavior:
+The `install.sh` script provides several commands to customize its behavior:
+
+| Command | Description |
+|---|---|
+| `init` | Install the toolkit and create hook stubs. |
+| `add SOURCE` | Add a hook script from a source directory. |
+| `remove HOOK SCRIPT_NAME` | Remove a hook script. |
+| `uninstall` | Remove runner artifacts and managed stubs. |
+| `help` | Show the help message. |
 
 | Flag | Description |
 |---|---|
-| `-H`, `--hooks HOOKS` | Comma-separated list of hook names to manage. |
-| `-A`, `--all-hooks` | Manage every Git-documented hook. |
-| `-s`, `--stage SELECTORS` | Legacy stage selector syntax. |
-| `--stage-source DIR` | Add a staging source directory. |
-| `--stage-hook HOOKS` | Filter target hook names for staging. Accepts a comma-separated list. |
-| `--stage-name NAMES` | Filter candidate filenames for staging. Accepts a comma-separated list. |
-| `--stage-order STRAT` | Control the order of the staging plan (`source`, `hook`, or `name`). |
-| `-M`, `--stage-summary` | Print the staging plan before copying. |
+| `--hooks HOOKS` | (init) Comma-separated list of hook names to manage. |
+| `--all-hooks` | (init) Manage every Git-documented hook. |
+| `--for-hook HOOK` | (add) Target a specific hook. |
 | `-n`, `--dry-run` | Print planned actions without touching the filesystem. |
 | `-f`, `--force` | Overwrite existing stubs. |
-| `-u`, `--uninstall` | Remove runner artifacts and managed stubs. |
-| `-h`, `--help` | Show the help message. |
 
 ### Provided Examples
 
-The toolkit comes with several examples in the `examples/` directory. You can stage them using the `--stage-source examples` flag.
+The toolkit comes with several examples in the `examples/` directory. You can add them using the `add` command:
+
+```bash
+.githooks/install.sh add examples
+```
 
 - **`dependency-sync.sh`**: Automatically runs `npm install`, `bundle install`, etc., when dependency files change.
 - **`watch-configured-actions.sh`**: Run custom commands when specific files change, based on a YAML or JSON configuration file.

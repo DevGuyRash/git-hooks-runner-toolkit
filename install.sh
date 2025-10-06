@@ -18,7 +18,7 @@ NAME
     install.sh - Install, update, or remove the Git Hooks Runner Toolkit.
 
 SYNOPSIS
-    install.sh [OPTIONS]
+    install.sh COMMAND [OPTIONS]
 
 DESCRIPTION
     This script manages the installation and configuration of the Git Hooks Runner
@@ -29,54 +29,34 @@ DESCRIPTION
     are easy to maintain. Instead of a single, monolithic hook script, you can
     have multiple "hook parts" that are executed in lexical order.
 
+COMMANDS
+    init
+        Install the toolkit and create hook stubs. This is the default command.
+
+        --hooks HOOKS
+            A comma-separated list of hook names to manage.
+        --all-hooks
+            Manage every hook that Git documents.
+        --force
+            Overwrite existing hook stubs.
+
+    add SOURCE
+        Add a hook script from a source directory. The special keywords "examples"
+        and "hooks" can be used to refer to the bundled examples and hooks.
+
+        --for-hook HOOK
+            Target a specific hook.
+
+    remove HOOK SCRIPT_NAME
+        Remove a hook script.
+
+    uninstall
+        Remove the runner artifacts and any managed hook stubs.
+
+    help
+        Show this help message.
+
 OPTIONS
-    -H, --hooks HOOKS
-        A comma-separated list of hook names to manage. If this option is not
-        provided, a default set of client-side hooks will be installed.
-
-        Example:
-            install.sh --hooks pre-commit,post-merge
-
-    -A, --all-hooks
-        Manage every hook that Git documents, including both client-side and
-        server-side hooks.
-
-    --stage-source DIR
-        Add a staging source directory. The installer will scan this directory
-        for executable scripts and copy them to the appropriate hook parts
-        directory. The special keywords "examples" and "hooks" can be used to
-        refer to the bundled examples and hooks.
-
-        Example:
-            install.sh --stage-source path/to/my/scripts
-            install.sh --stage-source examples
-
-    --stage-hook HOOKS
-        Filter the hooks that will be staged. This is useful when you only
-        want to stage a subset of the hooks from a source directory.
-
-        Example:
-            install.sh --stage-source examples --stage-hook pre-commit
-
-    --stage-name NAMES
-        Filter the scripts that will be staged by their filename. This is
-        useful when you only want to stage a specific script.
-
-        Example:
-            install.sh --stage-source examples --stage-name dependency-sync.sh
-
-    --stage-order STRATEGY
-        Control the order in which the staging plan is executed. The available
-        strategies are:
-
-        - source: Group by the origin directory (default).
-        - hook: Group by the hook name.
-        - name: Sort alphabetically by filename.
-
-    -M, --stage-summary
-        Print the staging plan before copying the files. This is implied when
-        using --dry-run.
-
     -n, --dry-run
         Print the planned actions without actually touching the filesystem.
         This is useful for testing and debugging.
@@ -84,9 +64,6 @@ OPTIONS
     -f, --force
         Overwrite existing hook stubs, even if they were not created by this
         toolkit.
-
-    -u, --uninstall
-        Remove the runner artifacts and any managed hook stubs.
 
     -h, --help
         Show this help message.
@@ -96,19 +73,19 @@ EXAMPLES
         install.sh
 
     Install only the pre-commit and post-merge hooks:
-        install.sh --hooks pre-commit,post-merge
+        install.sh init --hooks pre-commit,post-merge
 
-    Stage all the included examples:
-        install.sh --stage-source examples
+    Add all the included examples:
+        install.sh add examples
 
-    Stage only the dependency-sync.sh example for the post-merge hook:
-        install.sh --stage-source examples --stage-hook post-merge --stage-name dependency-sync.sh
+    Add only the dependency-sync.sh example for the post-merge hook:
+        install.sh add examples --for-hook post-merge
 
-    Preview the staging plan for the examples without actually copying any files:
-        install.sh --stage-source examples --dry-run
+    Remove a hook script:
+        install.sh remove post-merge dependency-sync.sh
 
     Uninstall all managed hooks:
-        install.sh --uninstall
+        install.sh uninstall
 
 FILES
     .githooks/
@@ -1027,188 +1004,18 @@ run_stage() {
   return 0
 }
 
-while [ "$#" -gt 0 ]; do
-  case "$1" in
-    --hooks|-H)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "--hooks requires an argument"
-      fi
-      parse_hook_list "$2"
-      HOOKS_WERE_EXPLICIT=1
-      shift 2
-      ;;
-    --hooks=*)
-      parse_hook_list "${1#*=}"
-      HOOKS_WERE_EXPLICIT=1
-      shift
-      ;;
-    -s)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "-s requires an argument"
-      fi
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_handle_legacy_list "$2"
-      shift 2
-      ;;
-    -s*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_handle_legacy_list "${1#-s}"
-      shift
-      ;;
-    --stage)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_arg="all"
-      if [ "$#" -ge 2 ]; then
-        case "$2" in
-          -* ) stage_arg="all" ;;
-          * ) stage_arg=$2; shift ;;
-        esac
-      fi
-      stage_handle_legacy_list "${stage_arg}"
-      shift
-      ;;
-    --stage=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_handle_legacy_list "${1#*=}"
-      shift
-      ;;
-    --stage-source|-S)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "--stage-source requires an argument"
-      fi
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_source "$2"
-      shift 2
-      ;;
-    --stage-source=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_source "${1#*=}"
-      shift
-      ;;
-    --stage-hook|-G)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "--stage-hook requires an argument"
-      fi
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_hook "$2"
-      shift 2
-      ;;
-    --stage-hook=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_hook "${1#*=}"
-      shift
-      ;;
-    --stage-name|-N)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "--stage-name requires an argument"
-      fi
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_name "$2"
-      shift 2
-      ;;
-    --stage-name=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      stage_add_name "${1#*=}"
-      shift
-      ;;
-    --stage-order)
-      if [ "$#" -lt 2 ]; then
-        githooks_die "--stage-order requires an argument"
-      fi
-      REQUEST_STAGE=1
-      MODE="stage"
-      STAGE_ORDER_STRATEGY="$2"
-      case "${STAGE_ORDER_STRATEGY}" in
-        source|hook|name)
-          ;;
-        *)
-          githooks_die "unknown --stage-order strategy: ${STAGE_ORDER_STRATEGY}"
-          ;;
-      esac
-      shift 2
-      ;;
-    --stage-order=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      STAGE_ORDER_STRATEGY="${1#*=}"
-      case "${STAGE_ORDER_STRATEGY}" in
-        source|hook|name)
-          ;;
-        *)
-          githooks_die "unknown --stage-order strategy: ${STAGE_ORDER_STRATEGY}"
-          ;;
-      esac
-      shift
-      ;;
-    --stage-summary|-M)
-      REQUEST_STAGE=1
-      MODE="stage"
-      STAGE_SUMMARY=1
-      shift
-      ;;
-    --stage-summary=*)
-      REQUEST_STAGE=1
-      MODE="stage"
-      case "${1#*=}" in
-        0|false|FALSE|no|NO)
-          STAGE_SUMMARY=0
-          ;;
-        *)
-          STAGE_SUMMARY=1
-          ;;
-      esac
-      shift
-      ;;
-    --dry-run|-n)
-      DRY_RUN=1
-      shift
-      ;;
-    --force|-f)
-      FORCE=1
-      shift
-      ;;
-    --uninstall|-u)
-      MODE="uninstall"
-      REQUEST_UNINSTALL=1
-      shift
-      ;;
-    --all-hooks|-A)
-      USE_ALL=1
-      HOOKS_WERE_EXPLICIT=1
-      shift
-      ;;
-    -h|--help)
-      print_usage
-      exit 0
-      ;;
-    *)
-      githooks_die "unknown option: $1"
-      ;;
-  esac
-done
-
-if [ "${USE_ALL}" -eq 1 ]; then
-  HOOKS="${ALL_HOOKS}"
-fi
-
-if [ "${REQUEST_STAGE}" -eq 1 ] && [ "${REQUEST_UNINSTALL}" -eq 1 ]; then
-  githooks_die "--stage cannot be combined with --uninstall"
+if [ "$#" -eq 0 ]; then
+  COMMAND="init"
+else
+  COMMAND=$1
+  shift
 fi
 
 shared_root=$(githooks_shared_root)
 hooks_root=$(githooks_hooks_root)
 runner_target="${shared_root%/}/_runner.sh"
 lib_target="${shared_root%/}/lib/common.sh"
+
 
 if githooks_is_bare_repo; then
   stub_runner='$(dirname "$0")/_runner.sh'
@@ -1234,11 +1041,160 @@ case "${MODE}" in
     ;;
   stage)
     if run_stage; then
-      exit 0
-    fi
-    exit 1
+    exit 0
+  fi
+  exit 1
+}
+
+cmd_init() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --hooks|-H)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--hooks requires an argument"
+        fi
+        parse_hook_list "$2"
+        HOOKS_WERE_EXPLICIT=1
+        shift 2
+        ;;
+      --hooks=*)
+        parse_hook_list "${1#*=}"
+        HOOKS_WERE_EXPLICIT=1
+        shift
+        ;;
+      --all-hooks|-A)
+        USE_ALL=1
+        HOOKS_WERE_EXPLICIT=1
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      --force|-f)
+        FORCE=1
+        shift
+        ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      *)
+        githooks_die "unknown option for init: $1"
+        ;;
+    esac
+  done
+
+  if [ "${USE_ALL}" -eq 1 ]; then
+    HOOKS="${ALL_HOOKS}"
+  fi
+
+  install_runner
+  for hook in ${HOOKS}; do
+    create_parts_dir "${hook}"
+    write_stub "${hook}"
+  done
+  githooks_log_info "installation complete"
+}
+
+cmd_add() {
+  if [ "$#" -eq 0 ]; then
+    githooks_die "add command requires a source"
+  fi
+  stage_add_source "$1"
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --for-hook)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--for-hook requires an argument"
+        fi
+        stage_add_hook "$2"
+        shift 2
+        ;;
+      --for-hook=*)
+        stage_add_hook "${1#*=}"
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      --force|-f)
+        FORCE=1
+        shift
+        ;;
+      -h|--help)
+        print_usage
+        exit 0
+        ;;
+      *)
+        githooks_die "unknown option for add: $1"
+        ;;
+    esac
+  done
+  run_stage
+}
+
+cmd_remove() {
+  if [ "$#" -ne 2 ]; then
+    githooks_die "remove command requires hook and script name"
+  fi
+  remove_hook_part "$1" "$2"
+}
+
+cmd_uninstall() {
+    while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      *)
+        githooks_die "unknown option for uninstall: $1"
+        ;;
+    esac
+  done
+  for hook in ${HOOKS}; do
+    uninstall_stub "${hook}"
+  done
+  remove_runner_files
+  githooks_log_info "uninstallation complete"
+}
+
+cmd_help() {
+  print_usage
+}
+
+cmd_unknown() {
+  githooks_die "unknown command: $1"
+}
+
+if [ "$#" -eq 0 ]; then
+  COMMAND="init"
+else
+  COMMAND=$1
+  shift
+fi
+
+case "${COMMAND}" in
+  init)
+    cmd_init "$@"
+    ;;
+  add)
+    cmd_add "$@"
+    ;;
+  remove)
+    cmd_remove "$@"
+    ;;
+  uninstall)
+    cmd_uninstall "$@"
+    ;;
+  help)
+    cmd_help "$@"
     ;;
   *)
-    githooks_die "unknown mode: ${MODE}"
+    cmd_unknown "${COMMAND}"
     ;;
 esac
+
