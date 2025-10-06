@@ -57,12 +57,18 @@ graph TD
 
 ## Getting Started
 
-### 1. Clone the Toolkit
+### 1. Vendor the Toolkit
 
-Clone this repository into your project's root directory:
+Clone or submodule this repository into the `.githooks/` directory at the root of your project. If you are not using submodules, run:
 
 ```bash
 git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
+```
+
+If you prefer submodules, use:
+
+```bash
+git submodule add https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
 ```
 
 ### 2. Install the Hooks
@@ -89,16 +95,15 @@ ls .githooks
 You can inspect command-specific help at any time, for example:
 
 ```bash
-.githooks/install.sh --help stage
+.githooks/install.sh help stage
+.githooks/install.sh stage help add
 ```
 
 ### Optional: Track the Toolkit as a Submodule
 
-If you want to keep the toolkit up to date across multiple machines, add it to
-your repository as a Git submodule. This keeps `.githooks/` versioned while
-allowing you to pull upstream improvements easily.
+If you want to keep the toolkit up to date across multiple machines, manage `.githooks/` as a Git submodule. This keeps the toolkit versioned while allowing you to pull upstream improvements easily.
 
-1. Add the toolkit as a submodule at the recommended path:
+1. If you did not already add the toolkit as a submodule in Step 1, do so now:
 
     ```bash
     git submodule add https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
@@ -116,11 +121,9 @@ allowing you to pull upstream improvements easily.
     .githooks/install.sh install
     ```
 
-4. Commit the generated stubs under `.git/hooks/` if they are tracked by your
-   project (optional—most teams leave them unmanaged and rely on the installer).
+4. Commit the generated stubs under `.git/hooks/` if they are tracked by your project (optional—most teams leave them unmanaged and rely on the installer).
 
-5. When a new toolkit release is published, update the submodule reference and
-   reinstall the runner:
+5. When a new toolkit release is published, update the submodule reference and reinstall the runner:
 
     ```bash
     git submodule update --remote --merge .githooks
@@ -142,13 +145,6 @@ allowing you to pull upstream improvements easily.
 You can use `git subtree` instead of submodules if you prefer vendor-style
 merges; the workflow is similar—merge upstream changes, rerun `install`, and
 commit the result.
-
-The toolkit also provides MAN-style manuals via subcommands, which surface
-in-depth descriptions and examples:
-
-```bash
-.githooks/install.sh stage help add
-```
 
 ### 3. Add Your First Hook Part
 
@@ -215,7 +211,7 @@ Limit staging to one or more filenames with `--name`. The filter accepts shell-s
 
 ### Creating and Installing Your Own Hooks
 
-You can easily create and install your own custom hooks. The recommended way to do this is to place your hook scripts in the `hooks/` directory, and then use the `add` command to install them.
+You can easily create and install your own custom hooks. The recommended way to do this is to place your hook scripts in the `hooks/` directory, and then use the `stage add` subcommand to install them.
 
 For example, let's say you want to create a `pre-push` hook that runs your test suite. You would create a file named `hooks/pre-push/10-run-tests.sh` with the following content:
 
