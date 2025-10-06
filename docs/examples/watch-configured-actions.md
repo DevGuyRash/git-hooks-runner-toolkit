@@ -54,6 +54,24 @@ Each entry is an object with:
 
 The JSON schema mirrors the YAML structure.
 
+### JSON Schema
+
+```json
+[
+  {
+    "name": "docs build",
+    "patterns": ["docs/**/*.md", "docs/**/*.yaml"],
+    "commands": ["./scripts/build-docs"],
+    "continue_on_error": false
+  },
+  {
+    "name": "lint configs",
+    "patterns": ["*.json"],
+    "commands": ["npm run lint-configs"]
+  }
+]
+```
+
 ### Inline Rules
 
 Set `WATCH_INLINE_RULES` (or `WATCH_INLINE_RULES_DEFAULT`) to define rules
