@@ -30,40 +30,26 @@ DESCRIPTION
     have multiple "hook parts" that are executed in lexical order.
 
 COMMANDS
-    init
-        Install the toolkit and create hook stubs. This is the default command.
+    init [--hooks HOOKS] [--all-hooks] [--force]
+        Install the toolkit and create hook stubs. This is the default command if
+        no other command is specified.
 
-        --hooks HOOKS
-            A comma-separated list of hook names to manage.
-        --all-hooks
-            Manage every hook that Git documents.
-        --force
-            Overwrite existing hook stubs.
-
-    add SOURCE
+    add SOURCE [--for-hook HOOK]
         Add a hook script from a source directory. The special keywords "examples"
         and "hooks" can be used to refer to the bundled examples and hooks.
 
-        --for-hook HOOK
-            Target a specific hook.
-
     remove HOOK SCRIPT_NAME
-        Remove a hook script.
+        Remove a hook script from a specific hook.
 
     uninstall
-        Remove the runner artifacts and any managed hook stubs.
+        Remove all runner artifacts and managed hook stubs.
 
     help
         Show this help message.
 
-OPTIONS
+GLOBAL OPTIONS
     -n, --dry-run
         Print the planned actions without actually touching the filesystem.
-        This is useful for testing and debugging.
-
-    -f, --force
-        Overwrite existing hook stubs, even if they were not created by this
-        toolkit.
 
     -h, --help
         Show this help message.

@@ -179,19 +179,18 @@ The `install.sh` script provides several commands to customize its behavior:
 
 | Command | Description |
 |---|---|
-| `init` | Install the toolkit and create hook stubs. |
-| `add SOURCE` | Add a hook script from a source directory. |
+| `init` | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, and `--force`. |
+| `add SOURCE` | Add a hook script from a source directory. Supports `--for-hook`. |
 | `remove HOOK SCRIPT_NAME` | Remove a hook script. |
 | `uninstall` | Remove runner artifacts and managed stubs. |
 | `help` | Show the help message. |
 
+**Global Flags:**
+
 | Flag | Description |
 |---|---|
-| `--hooks HOOKS` | (init) Comma-separated list of hook names to manage. |
-| `--all-hooks` | (init) Manage every Git-documented hook. |
-| `--for-hook HOOK` | (add) Target a specific hook. |
 | `-n`, `--dry-run` | Print planned actions without touching the filesystem. |
-| `-f`, `--force` | Overwrite existing stubs. |
+| `-h`, `--help` | Show the help message. |
 
 ### Provided Examples
 
