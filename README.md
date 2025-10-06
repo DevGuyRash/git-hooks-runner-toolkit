@@ -92,6 +92,57 @@ You can inspect command-specific help at any time, for example:
 .githooks/install.sh --help stage
 ```
 
+### Optional: Track the Toolkit as a Submodule
+
+If you want to keep the toolkit up to date across multiple machines, add it to
+your repository as a Git submodule. This keeps `.githooks/` versioned while
+allowing you to pull upstream improvements easily.
+
+1. Add the toolkit as a submodule at the recommended path:
+
+    ```bash
+    git submodule add https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
+    ```
+
+2. Commit the submodule pointer:
+
+    ```bash
+    git commit -am "chore: add git-hooks-runner toolkit"
+    ```
+
+3. Install the hooks so stubs and shared runner are created in your repo:
+
+    ```bash
+    .githooks/install.sh install
+    ```
+
+4. Commit the generated stubs under `.git/hooks/` if they are tracked by your
+   project (optional—most teams leave them unmanaged and rely on the installer).
+
+5. When a new toolkit release is published, update the submodule reference and
+   reinstall the runner:
+
+    ```bash
+    git submodule update --remote --merge .githooks
+    .githooks/install.sh install --force
+    git commit -am "chore: upgrade git-hooks-runner toolkit"
+    ```
+
+   The `--force` flag refreshes existing stubs so they point to the updated
+   runner.
+
+6. Share the new commit with your team; they can sync by running:
+
+    ```bash
+    git pull
+    git submodule update --init --recursive
+    .githooks/install.sh install
+    ```
+
+You can use `git subtree` instead of submodules if you prefer vendor-style
+merges; the workflow is similar—merge upstream changes, rerun `install`, and
+commit the result.
+
 The toolkit also provides MAN-style manuals via subcommands, which surface
 in-depth descriptions and examples:
 
