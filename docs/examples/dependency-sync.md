@@ -29,6 +29,13 @@ When a matching file changes and the associated tool is available on `PATH`,
 the script executes the appropriate install/sync command. Missing tools are
 reported but do not fail the hook.
 
+## Requirements
+
+- Git must be available (used to detect changed paths).
+- Install the package managers you expect to run (e.g. `npm`, `yarn`, `pnpm`,
+  `bun`, `composer`, `pip`, `poetry`, `pipenv`, `uv`, `bundle`, `mix`, `go`,
+  `cargo`). Absent tools are skipped with a warning.
+
 ## Optional Mark File
 
 Set `GITHOOKS_DEPENDENCY_SYNC_MARK_FILE` (or the legacy
