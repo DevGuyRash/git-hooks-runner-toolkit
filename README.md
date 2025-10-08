@@ -59,17 +59,62 @@ graph TD
 
 ### 1. Vendor the Toolkit
 
-Clone or submodule this repository into the `.githooks/` directory at the root of your project. If you are not using submodules, run:
+You can add the toolkit to your project in two ways: as a direct clone or as a Git submodule.
 
+#### Option 1: Direct Clone (Recommended)
+
+This is the simplest method and is recommended for most users. It integrates the toolkit directly into your project, making hook management straightforward.
+
+1.  **Clone the repository:**
+    ```bash
+    git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
+    ```
+
+2.  **Integrate it into your project:** By removing the toolkit's `.git` directory, you can track all its files within your main repository.
+    ```bash
+    rm -rf .githooks/.git
+    ```
+
+3.  **Commit the toolkit:**
+    ```bash
+    git add .githooks
+    git commit -m "chore: vendor git-hooks-runner toolkit"
+    ```
+
+With this approach, any custom hooks you add to `.githooks/` are simply part of your project and can be committed directly. The trade-off is that updating the toolkit requires a manual merge from the upstream repository.
+
+#### Option 2: Git Submodule (Advanced)
+
+If you want to keep the toolkit's history separate and update it easily, you can use a submodule. However, this is an advanced workflow that is considerably more complex, especially for teams.
+
+**Requirement: Fork the Toolkit**
+
+To track custom hooks in a submodule across a team, you must first **fork** the `git-hooks-runner-toolkit` repository. You cannot use the original repository directly, because your team will need a shared remote to push custom hook changes to.
+
+1.  **Fork the repository** on GitHub.
+
+2.  **Add your fork as a submodule:** Use the URL of *your fork*.
+    ```bash
+    git submodule add <URL_OF_YOUR_FORK> .githooks
+    git commit -m "chore: add forked git-hooks-runner as submodule"
+    ```
+
+When you add or edit hooks, they are modified *inside* the `.githooks` submodule. To share these changes, you must commit and **push** them to your fork, and then commit the updated submodule reference in your main repository.
+
+**Workflow for updating hooks in a submodule:**
 ```bash
-git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
+# 1. Stage your hook part into the submodule
+.githooks/install.sh stage add hooks
+
+# 2. Navigate into the submodule, commit, and push the change to your fork
+(cd .githooks && git add . && git commit -m "feat: add my-custom-hook" && git push)
+
+# 3. Return to your project and commit the updated submodule reference
+git add .githooks
+git commit -m "chore: update hooks submodule with my-custom-hook"
 ```
 
-If you prefer submodules, use:
-
-```bash
-git submodule add https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
-```
+Because this workflow requires managing a separate forked repository and involves multiple steps, we strongly recommend the **Direct Clone** method unless you have a specific need for the submodule approach.
 
 ### 2. Install the Hooks
 
@@ -99,52 +144,7 @@ You can inspect command-specific help at any time, for example:
 .githooks/install.sh stage help add
 ```
 
-### Optional: Track the Toolkit as a Submodule
 
-If you want to keep the toolkit up to date across multiple machines, manage `.githooks/` as a Git submodule. This keeps the toolkit versioned while allowing you to pull upstream improvements easily.
-
-1. If you did not already add the toolkit as a submodule in Step 1, do so now:
-
-    ```bash
-    git submodule add https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
-    ```
-
-2. Commit the submodule pointer:
-
-    ```bash
-    git commit -am "chore: add git-hooks-runner toolkit"
-    ```
-
-3. Install the hooks so stubs and shared runner are created in your repo:
-
-    ```bash
-    .githooks/install.sh install
-    ```
-
-4. Commit the generated stubs under `.git/hooks/` if they are tracked by your project (optional—most teams leave them unmanaged and rely on the installer).
-
-5. When a new toolkit release is published, update the submodule reference and reinstall the runner:
-
-    ```bash
-    git submodule update --remote --merge .githooks
-    .githooks/install.sh install --force
-    git commit -am "chore: upgrade git-hooks-runner toolkit"
-    ```
-
-   The `--force` flag refreshes existing stubs so they point to the updated
-   runner.
-
-6. Share the new commit with your team; they can sync by running:
-
-    ```bash
-    git pull
-    git submodule update --init --recursive
-    .githooks/install.sh install
-    ```
-
-You can use `git subtree` instead of submodules if you prefer vendor-style
-merges; the workflow is similar—merge upstream changes, rerun `install`, and
-commit the result.
 
 ### 3. Add Your First Hook Part
 
