@@ -321,7 +321,7 @@ companion guide under `docs/examples/`. Stage them with:
 .githooks/install.sh stage add examples
 ```
 
-- **`dependency-sync.sh`** ([guide](docs/examples/dependency-sync.md)): Automatically runs `npm install`, `bundle install`, etc., when dependency files change.
+- **`dependency-sync.sh`** ([guide](docs/examples/dependency-sync.md)): Watches common manifests across Node, Python (pip/Poetry/Pipenv/uv/PDM), Ruby, PHP (Composer), Go, Rust, Elixir, .NET, Java (Maven/Gradle), Swift, Dart/Flutter, Bun, and CocoaPods and runs the matching install/sync command when those files change.
 - **`watch-configured-actions.sh`** ([guide](docs/examples/watch-configured-actions.md)): Run custom commands when specific files change, based on a YAML or JSON configuration file.
 - **`metadata-apply.sh`** ([guide](docs/examples/metadata-apply.md)): Restores file permissions and other metadata using `metastore`.
 - **`git-crypt-enforce.sh`** ([guide](docs/examples/git-crypt-enforce.md)): Ensures that files that should be encrypted with `git-crypt` are not committed in plaintext.

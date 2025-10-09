@@ -29,9 +29,10 @@ HOOK_ARG3=${3-}
 
 CHANGED_FILE_LOG=$(mktemp "${TMPDIR:-/tmp}/githooks-change-files.XXXXXX") || exit 1
 TRIGGER_NOTE_LOG=$(mktemp "${TMPDIR:-/tmp}/githooks-change-notes.XXXXXX") || exit 1
+TRIGGER_DESC_LOG=$(mktemp "${TMPDIR:-/tmp}/githooks-change-descriptions.XXXXXX") || exit 1
 
 cleanup_logs() {
-  rm -f "${CHANGED_FILE_LOG}" "${TRIGGER_NOTE_LOG}"
+  rm -f "${CHANGED_FILE_LOG}" "${TRIGGER_NOTE_LOG}" "${TRIGGER_DESC_LOG}"
 }
 trap cleanup_logs EXIT HUP INT TERM
 
@@ -131,6 +132,21 @@ record_trigger_note() {
   printf '%s\n' "$1" >>"${TRIGGER_NOTE_LOG}"
 }
 
+description_already_triggered() {
+  desc=$1
+  if [ ! -f "${TRIGGER_DESC_LOG}" ]; then
+    return 1
+  fi
+  if grep -Fxq -- "${desc}" "${TRIGGER_DESC_LOG}" 2>/dev/null; then
+    return 0
+  fi
+  return 1
+}
+
+mark_description_triggered() {
+  printf '%s\n' "$1" >>"${TRIGGER_DESC_LOG}"
+}
+
 run_if_changed() {
   patterns=$1
   shift
@@ -139,19 +155,30 @@ run_if_changed() {
   if ! match=$(any_changed_match "${patterns}"); then
     return 0
   fi
+  if description_already_triggered "${description}"; then
+    record_trigger_note "${description}: ${match}"
+    return 0
+  fi
   if [ "$#" -eq 0 ]; then
     githooks_log_info "${description}: change detected (${match}), no command configured"
     TRIGGERED=1
     record_trigger_note "${description}: ${match}"
+    mark_description_triggered "${description}"
     return 0
   fi
   command_name=$1
   if ! command -v "${command_name}" >/dev/null 2>&1; then
     githooks_log_warn "${description}: optional tool '${command_name}' missing; skipping"
     record_trigger_note "${description}: ${match} (skipped; missing ${command_name})"
+    mark_description_triggered "${description}"
     return 0
   fi
+  GITHOOKS_DEPENDENCY_SYNC_MATCH=${match}
+  export GITHOOKS_DEPENDENCY_SYNC_MATCH
+  GITHOOKS_DEPENDENCY_SYNC_DESCRIPTION=${description}
+  export GITHOOKS_DEPENDENCY_SYNC_DESCRIPTION
   githooks_log_info "${description}: change detected (${match}); running $*"
+  mark_description_triggered "${description}"
   if ! "$@"; then
     status=$?
     githooks_log_error "${description}: command failed with exit ${status}"
@@ -160,6 +187,43 @@ run_if_changed() {
   TRIGGERED=1
   record_trigger_note "${description}: ${match}"
   return 0
+}
+
+run_extra_dependency_recipes() {
+  extra_recipes=${GITHOOKS_DEPENDENCY_SYNC_EXTRA_RECIPES:-}
+  if [ -z "${extra_recipes}" ]; then
+    return 0
+  fi
+  extra_recipes_log=$(mktemp "${TMPDIR:-/tmp}/githooks-extra-recipes.XXXXXX") || return 1
+  printf '%s\n' "${extra_recipes}" >"${extra_recipes_log}"
+  while IFS= read -r recipe_line; do
+    trimmed_line=$(trim_pattern "${recipe_line}")
+    [ -n "${trimmed_line}" ] || continue
+    case "${trimmed_line}" in
+      \#*) continue ;;
+    esac
+    patterns_part=${trimmed_line%%|*}
+    rest_part=${trimmed_line#*|}
+    if [ "${patterns_part}" = "${trimmed_line}" ] || [ -z "${rest_part}" ]; then
+      continue
+    fi
+    description_part=${rest_part%%|*}
+    command_part=${rest_part#*|}
+    if [ "${description_part}" = "${rest_part}" ]; then
+      command_part=""
+    fi
+    patterns_part=$(trim_pattern "${patterns_part}")
+    description_part=$(trim_pattern "${description_part}")
+    if [ -z "${patterns_part}" ] || [ -z "${description_part}" ]; then
+      continue
+    fi
+    if [ -n "${command_part}" ]; then
+      run_if_changed "${patterns_part}" "${description_part}" sh -c "${command_part}"
+    else
+      run_if_changed "${patterns_part}" "${description_part}"
+    fi
+  done <"${extra_recipes_log}"
+  rm -f "${extra_recipes_log}"
 }
 
 record_mark_file() {
@@ -203,17 +267,25 @@ run_if_changed 'package-lock.json,npm-shrinkwrap.json,package.json' 'npm install
 run_if_changed 'yarn.lock' 'yarn install' yarn install --frozen-lockfile
 run_if_changed 'pnpm-lock.yaml' 'pnpm install' pnpm install --frozen-lockfile
 run_if_changed 'bun.lock,bun.lockb' 'bun install' bun install
-run_if_changed 'composer.lock' 'composer install' composer install --no-interaction --no-progress --quiet
-if [ -f requirements.txt ]; then
-  run_if_changed 'requirements.txt' 'pip install -r requirements.txt' pip install -r requirements.txt
-fi
+run_if_changed 'composer.lock,composer.json' 'composer install' composer install --no-interaction --no-progress --quiet
+run_if_changed 'requirements.txt,requirements-*.txt,requirements-dev.txt,dev-requirements.txt' 'pip install (requirements)' sh -c 'pip install -r "$GITHOOKS_DEPENDENCY_SYNC_MATCH"'
 run_if_changed 'go.mod,go.sum' 'go mod download' go mod download
 run_if_changed 'Cargo.lock,Cargo.toml' 'cargo fetch' cargo fetch
-run_if_changed 'poetry.lock' 'poetry install' poetry install
-run_if_changed 'Pipfile.lock' 'pipenv sync' pipenv sync
+run_if_changed 'poetry.lock,pyproject.toml' 'poetry install' poetry install
+run_if_changed 'Pipfile,Pipfile.lock' 'pipenv sync' pipenv sync
 run_if_changed 'uv.lock,uv.toml' 'uv sync' uv sync
-run_if_changed 'Gemfile.lock' 'bundle install' bundle install --quiet
-run_if_changed 'mix.lock' 'mix deps.get' mix deps.get
+run_if_changed 'pdm.lock' 'pdm sync' pdm sync
+run_if_changed 'environment.yml,environment.yaml' 'conda env update' sh -c 'conda env update --prune --file "$GITHOOKS_DEPENDENCY_SYNC_MATCH"'
+run_if_changed 'Gemfile,Gemfile.lock,gems.rb,gems.locked' 'bundle install' bundle install --quiet
+run_if_changed 'mix.lock,mix.exs' 'mix deps.get' mix deps.get
+run_if_changed 'packages.lock.json,Directory.Packages.props,global.json,*.csproj,*.fsproj,*.vbproj' 'dotnet restore' dotnet restore
+run_if_changed 'pom.xml,pom.lock' 'mvn dependency:resolve' mvn -B -q dependency:resolve
+run_if_changed 'build.gradle,build.gradle.kts,settings.gradle,settings.gradle.kts,gradle.lockfile' 'gradle dependencies' sh -c 'if [ -x "./gradlew" ]; then ./gradlew --quiet dependencies; else gradle --quiet dependencies; fi'
+run_if_changed 'Package.swift,Package.resolved' 'swift package resolve' swift package resolve
+run_if_changed 'pubspec.yaml,pubspec.lock' 'dart pub get' dart pub get
+run_if_changed 'Podfile,Podfile.lock' 'pod install' pod install
+
+run_extra_dependency_recipes
 
 record_mark_file
 

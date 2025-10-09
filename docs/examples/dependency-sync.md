@@ -20,14 +20,60 @@ all four hooks automatically.
 
 For each run the script compares the previous and current revisions:
 
-- Node (npm / yarn / pnpm / bun) lockfiles
-- Composer, Pip (requirements.txt), Poetry, Pipenv, uv, and Ruby Bundler
+- Node (npm / yarn / pnpm / bun) lockfiles and manifests
+- Composer manifests
+- Python dependency managers: `requirements*.txt`, Poetry, Pipenv, uv, and PDM
+- Conda environment YAML definitions
 - Go (`go.mod`, `go.sum`) and Rust (`Cargo.toml`, `Cargo.lock`)
-- Elixir (`mix.lock`)
+- Ruby Bundler (`Gemfile`, `gems.rb`, lockfiles)
+- Elixir (`mix.exs`, `mix.lock`)
+- .NET (`packages.lock.json`, `Directory.Packages.props`, project files)
+- Java (Maven `pom.xml`, Gradle settings/build files, `gradle.lockfile`)
+- Swift Package Manager (`Package.swift`, `Package.resolved`)
+- Dart / Flutter (`pubspec.yaml`, `pubspec.lock`)
+- CocoaPods (`Podfile`, `Podfile.lock`)
 
 When a matching file changes and the associated tool is available on `PATH`,
 the script executes the appropriate install/sync command. Missing tools are
 reported but do not fail the hook.
+
+## Command Reference
+
+| Ecosystem | Watched patterns | Command |
+| --- | --- | --- |
+| npm | `package-lock.json`, `npm-shrinkwrap.json`, `package.json` | `npm install --no-fund` |
+| Yarn | `yarn.lock` | `yarn install --frozen-lockfile` |
+| pnpm | `pnpm-lock.yaml` | `pnpm install --frozen-lockfile` |
+| Bun | `bun.lock`, `bun.lockb` | `bun install` |
+| Composer | `composer.lock`, `composer.json` | `composer install --no-interaction --no-progress --quiet` |
+| Pip (requirements) | `requirements*.txt` | `pip install -r "$GITHOOKS_DEPENDENCY_SYNC_MATCH"` |
+| Poetry | `poetry.lock`, `pyproject.toml` | `poetry install` |
+| Pipenv | `Pipfile`, `Pipfile.lock` | `pipenv sync` |
+| uv | `uv.lock`, `uv.toml` | `uv sync` |
+| PDM | `pdm.lock` | `pdm sync` |
+| Conda | `environment.yml`, `environment.yaml` | `conda env update --prune --file "$GITHOOKS_DEPENDENCY_SYNC_MATCH"` |
+| Go | `go.mod`, `go.sum` | `go mod download` |
+| Rust | `Cargo.toml`, `Cargo.lock` | `cargo fetch` |
+| Ruby Bundler | `Gemfile`, `Gemfile.lock`, `gems.rb`, `gems.locked` | `bundle install --quiet` |
+| Elixir | `mix.exs`, `mix.lock` | `mix deps.get` |
+| .NET | `packages.lock.json`, `Directory.Packages.props`, `*.csproj`, `*.fsproj`, `*.vbproj`, `global.json` | `dotnet restore` |
+| Maven | `pom.xml`, `pom.lock` | `mvn -B -q dependency:resolve` |
+| Gradle | `build.gradle`, `settings.gradle`, `*.kts`, `gradle.lockfile` | `./gradlew --quiet dependencies` if available, else `gradle --quiet dependencies` |
+| SwiftPM | `Package.swift`, `Package.resolved` | `swift package resolve` |
+| Dart / Flutter | `pubspec.yaml`, `pubspec.lock` | `dart pub get` |
+| CocoaPods | `Podfile`, `Podfile.lock` | `pod install` |
+
+## Custom Recipes and Match Data
+
+- `GITHOOKS_DEPENDENCY_SYNC_MATCH` is exported when a recipe triggers. It holds
+  the first path that matched the recipe patterns so wrapper commands can pull
+  the exact manifest (for example `pip install -r "$GITHOOKS_DEPENDENCY_SYNC_MATCH"`).
+- Provide extra automation without editing the script through
+  `GITHOOKS_DEPENDENCY_SYNC_EXTRA_RECIPES`. Supply newline-delimited entries in
+  the form `patterns|description|command`, and each entry is executed with
+  `sh -c` so you can reference shell syntax or the exported match variable.
+- Recipes share a "description" key; repeated matches for the same description
+  only execute the command once per hook run even if multiple manifests change.
 
 ## Requirements
 

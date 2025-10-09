@@ -18,6 +18,32 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${example_source}")" && pwd)
 
 example_tests_init
 
+example_write_stub() {
+  stub_path=$1
+  log_path=$2
+  cat <<EOF >"${stub_path}"
+#!/bin/sh
+printf '%s\n' "\$*" >> "${log_path}"
+exit 0
+EOF
+  chmod 755 "${stub_path}"
+}
+
+example_expect_log_contains() {
+  log_path=$1
+  needle=$2
+  log_contents=$(ghr_read_or_empty "${log_path}")
+  case "${log_contents}" in
+    *"${needle}"*)
+      return 0
+      ;;
+    *)
+      TEST_FAILURE_DIAG=$(printf 'log %s missing substring %s' "${log_path}" "${needle}")
+      return 1
+      ;;
+  esac
+}
+
 example_test_dependency_sync() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
@@ -68,24 +94,33 @@ example_test_dependency_sync() {
 
   if [ "$rc" -eq 0 ]; then
     mkdir -p "$repo/bin"
-    cat <<'SH' >"$repo/bin/bun"
-#!/bin/sh
-printf '%s\n' "$*" >> "${GITHOOKS_REPO_ROOT}/bun.log"
-exit 0
-SH
-    chmod 755 "$repo/bin/bun"
-    cat <<'SH' >"$repo/bin/cargo"
-#!/bin/sh
-printf '%s\n' "$*" >> "${GITHOOKS_REPO_ROOT}/cargo.log"
-exit 0
-SH
-    chmod 755 "$repo/bin/cargo"
-    cat <<'SH' >"$repo/bin/uv"
-#!/bin/sh
-printf '%s\n' "$*" >> "${GITHOOKS_REPO_ROOT}/uv.log"
-exit 0
-SH
-    chmod 755 "$repo/bin/uv"
+    while IFS='|' read -r cmd log_name; do
+      [ -n "${cmd}" ] || continue
+      example_write_stub "$repo/bin/${cmd}" "$repo/${log_name}"
+    done <<'EOF'
+bun|bun.log
+cargo|cargo.log
+uv|uv.log
+npm|npm.log
+yarn|yarn.log
+pnpm|pnpm.log
+composer|composer.log
+pip|pip.log
+go|go.log
+poetry|poetry.log
+pipenv|pipenv.log
+pdm|pdm.log
+conda|conda.log
+bundle|bundle.log
+mix|mix.log
+dotnet|dotnet.log
+mvn|mvn.log
+gradle|gradle.log
+dart|dart.log
+pod|pod.log
+swift|swift.log
+EOF
+    example_write_stub "$repo/gradlew" "$repo/gradlew.log"
   fi
 
   if [ "$rc" -eq 0 ]; then
@@ -96,11 +131,42 @@ SH
   fi
 
   if [ "$rc" -eq 0 ]; then
-    printf 'v1\n' >"$repo/bun.lock"
+    printf '{"lockfileVersion": 3}\n' >"$repo/package-lock.json"
+    printf '# yarn lock\n' >"$repo/yarn.lock"
+    printf '# pnpm lock\n' >"$repo/pnpm-lock.yaml"
+    printf 'bunlock\n' >"$repo/bun.lock"
+    printf '{"hash": "abc"}\n' >"$repo/composer.lock"
+    printf 'requests==2.0.0\n' >"$repo/requirements.txt"
+    printf 'module example\nrequire example.com/pkg v0.1.0\n' >"$repo/go.mod"
+    printf 'example.com/pkg v0.1.0 h1:abc\n' >"$repo/go.sum"
     printf '[package]\nname = "example"\nversion = "0.1.0"\n' >"$repo/Cargo.toml"
     printf '[[package]]\nname = "example"\nversion = "0.1.0"\n' >"$repo/Cargo.lock"
-    printf '{"version": "0.1.0"}\n' >"$repo/uv.lock"
-    ghr_git "$repo" "$home" add bun.lock Cargo.toml Cargo.lock uv.lock
+    printf '[tool.poetry]\nname="example"\n' >"$repo/poetry.lock"
+    printf '[[tool.pdm]]\n' >"$repo/pdm.lock"
+    printf '[[tool.uv]]\n' >"$repo/uv.lock"
+    printf 'name = "example"\n' >"$repo/pyproject.toml"
+    printf 'source = "pypi"\n' >"$repo/Pipfile"
+    printf '{}\n' >"$repo/Pipfile.lock"
+    printf 'channels:\n  - defaults\n' >"$repo/environment.yml"
+    printf 'source "https://rubygems.org"\n' >"$repo/Gemfile"
+    printf 'GEM\n  specs:\n' >"$repo/Gemfile.lock"
+    printf 'defmodule Example.MixProject do end\n' >"$repo/mix.exs"
+    printf '%s\n' 'lock' >"$repo/mix.lock"
+    printf '{\n  "version": 1\n}\n' >"$repo/packages.lock.json"
+    printf '<Project />\n' >"$repo/Directory.Packages.props"
+    mkdir -p "$repo/src"
+    printf '<Project Sdk="Microsoft.NET.Sdk" />\n' >"$repo/src/App.csproj"
+    printf '<project><modelVersion>4.0.0</modelVersion></project>\n' >"$repo/pom.xml"
+    printf 'dependencies { }\n' >"$repo/build.gradle"
+    printf 'rootProject.name="example"\n' >"$repo/settings.gradle"
+    printf 'gradle-lock\n' >"$repo/gradle.lockfile"
+    printf '// swift package\n' >"$repo/Package.swift"
+    printf '{"pins": []}\n' >"$repo/Package.resolved"
+    printf 'name: example\n' >"$repo/pubspec.yaml"
+    printf '# lock\n' >"$repo/pubspec.lock"
+    printf 'platform :ios, "13.0"\n' >"$repo/Podfile"
+    printf 'PODS:\n' >"$repo/Podfile.lock"
+    ghr_git "$repo" "$home" add .
     ghr_git "$repo" "$home" commit -q -m 'feat: add dependency manifests'
     ghr_git "$repo" "$home" checkout "$base_branch" >/dev/null 2>&1
   fi
@@ -114,67 +180,85 @@ SH
 
   if [ "$rc" -eq 0 ]; then
     mark="$repo/.git/change.mark"
-    bun_log="$repo/bun.log"
-    cargo_log="$repo/cargo.log"
-    uv_log="$repo/uv.log"
     if [ ! -f "$mark" ]; then
       TEST_FAILURE_DIAG='dependency sync mark file missing after merge'
       rc=1
     else
       mark_contents=$(ghr_read_or_empty "$mark")
-      case "$mark_contents" in
-        *'trigger=bun install: bun.lock'*) : ;;
-        *) TEST_FAILURE_DIAG='mark file missing bun install trigger entry'; rc=1 ;;
-      esac
-      if [ "$rc" -eq 0 ]; then
+      while IFS= read -r expected_desc; do
+        [ -n "$expected_desc" ] || continue
         case "$mark_contents" in
-          *'trigger=cargo fetch: Cargo.lock'*) : ;;
-          *) TEST_FAILURE_DIAG='mark file missing cargo fetch trigger entry'; rc=1 ;;
+          *"trigger=${expected_desc}:"*) : ;;
+          *)
+            TEST_FAILURE_DIAG=$(printf 'mark file missing trigger for %s' "$expected_desc")
+            rc=1
+            break
+            ;;
         esac
-      fi
-      if [ "$rc" -eq 0 ]; then
-        case "$mark_contents" in
-          *'trigger=uv sync: uv.lock'*) : ;;
-          *) TEST_FAILURE_DIAG='mark file missing uv sync trigger entry'; rc=1 ;;
-        esac
-      fi
+      done <<'EOF'
+npm install
+yarn install
+pnpm install
+bun install
+composer install
+pip install (requirements)
+go mod download
+cargo fetch
+poetry install
+pipenv sync
+uv sync
+pdm sync
+conda env update
+bundle install
+mix deps.get
+dotnet restore
+mvn dependency:resolve
+gradle dependencies
+swift package resolve
+dart pub get
+pod install
+EOF
     fi
-    if [ "$rc" -eq 0 ]; then
-      if [ ! -f "$bun_log" ]; then
-        TEST_FAILURE_DIAG='bun stub did not execute'
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    while IFS='|' read -r log_name needle; do
+      [ -n "$log_name" ] || continue
+      log_path="$repo/${log_name}"
+      if [ ! -f "$log_path" ]; then
+        TEST_FAILURE_DIAG=$(printf '%s missing after merge' "$log_name")
         rc=1
-      else
-        bun_contents=$(ghr_read_or_empty "$bun_log")
-        case "$bun_contents" in
-          *'install'*) : ;;
-          *) TEST_FAILURE_DIAG='bun stub log missing install invocation'; rc=1 ;;
-        esac
+        break
       fi
-    fi
-    if [ "$rc" -eq 0 ]; then
-      if [ ! -f "$cargo_log" ]; then
-        TEST_FAILURE_DIAG='cargo stub did not execute'
-        rc=1
-      else
-        cargo_contents=$(ghr_read_or_empty "$cargo_log")
-        case "$cargo_contents" in
-          *'fetch'*) : ;;
-          *) TEST_FAILURE_DIAG='cargo stub log missing fetch invocation'; rc=1 ;;
-        esac
+      if [ -n "$needle" ]; then
+        if ! example_expect_log_contains "$log_path" "$needle"; then
+          rc=1
+          break
+        fi
       fi
-    fi
-    if [ "$rc" -eq 0 ]; then
-      if [ ! -f "$uv_log" ]; then
-        TEST_FAILURE_DIAG='uv stub did not execute'
-        rc=1
-      else
-        uv_contents=$(ghr_read_or_empty "$uv_log")
-        case "$uv_contents" in
-          *'sync'*) : ;;
-          *) TEST_FAILURE_DIAG='uv stub log missing sync invocation'; rc=1 ;;
-        esac
-      fi
-    fi
+    done <<'EOF'
+npm.log|--no-fund
+yarn.log|--frozen-lockfile
+pnpm.log|--frozen-lockfile
+bun.log|install
+composer.log|install
+pip.log|-r
+go.log|mod download
+cargo.log|fetch
+poetry.log|install
+pipenv.log|sync
+uv.log|sync
+pdm.log|sync
+conda.log|env update
+bundle.log|install
+mix.log|deps.get
+dotnet.log|restore
+mvn.log|dependency:resolve
+gradlew.log|--quiet
+swift.log|package resolve
+dart.log|pub get
+pod.log|install
+EOF
   fi
 
   trap - EXIT
