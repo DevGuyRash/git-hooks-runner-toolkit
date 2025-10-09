@@ -265,6 +265,17 @@ To clear every part for a hook, combine the hook with `--all`:
 .githooks/install.sh stage remove pre-commit --all
 ```
 
+To reverse a staging operation based on the source files, use `stage unstage`.
+It scans the source directory, resolves hook targets from metadata comments or
+directory placement, and removes any matching staged scripts:
+
+```bash
+.githooks/install.sh stage unstage examples --name 'dependency-sync'
+```
+
+You can reuse the same filters as `stage add`, including `--hook`, `--name`, and
+`--dry-run`, to scope the unstaging plan without touching unrelated parts.
+
 For a high-level summary of hooks, stubs, and part counts, run:
 
 ```bash
@@ -297,12 +308,13 @@ The `install.sh` script provides several commands to customize its behavior:
 |---|---|
 | `install` | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, and `--force`. |
 | `stage add SOURCE` | Copy hook parts from a source directory. Supports `--hook` (alias: `--for-hook`), `--name` (globs, extension optional), `--force`, and `--dry-run`. |
+| `stage unstage SOURCE` | Remove staged hook parts that match a source directory. Supports `--hook`, `--name`, and `--dry-run`. |
 | `stage remove HOOK [--name PART \| --all]` | Remove one part by name (extension optional) or purge all parts for a hook. |
 | `stage list [HOOK]` | Show staged parts for all hooks or a specific hook. |
 | `hooks list [HOOK]` | Summarize installed stubs and staged parts. |
 | `config show` / `config set hooks-path PATH` | Inspect or update toolkit configuration. |
 | `help [COMMAND [SUBCOMMAND]]` | Display MAN-style manuals for commands and subcommands. |
-| `uninstall` | Remove runner artifacts and managed stubs. |
+| `uninstall` | Remove runner artifacts and managed stubs while leaving checked-in toolkit files intact. |
 
 **Global Flags:**
 

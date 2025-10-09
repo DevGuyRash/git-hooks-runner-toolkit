@@ -528,6 +528,202 @@ test_stage_remove_by_name() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
+test_unstage_removes_matching_parts() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --name 'dependency-sync'; then
+      TEST_FAILURE_DIAG='stage add dependency-sync failed before unstage'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    for hook in post-merge post-rewrite post-checkout post-commit; do
+      part_path="$parsed_repo/.githooks/${hook}.d/dependency-sync.sh"
+      if [ ! -x "$part_path" ]; then
+        TEST_FAILURE_DIAG="expected staged part missing for $hook before unstage"
+        rc=1
+        break
+      fi
+    done
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage unstage examples --name 'dependency-sync'; then
+      TEST_FAILURE_DIAG='stage unstage dependency-sync failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    for hook in post-merge post-rewrite post-checkout post-commit; do
+      part_path="$parsed_repo/.githooks/${hook}.d/dependency-sync.sh"
+      if [ -e "$part_path" ]; then
+        TEST_FAILURE_DIAG="unstage left dependency-sync in $hook"
+        rc=1
+        break
+      fi
+    done
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_unstage_dry_run_preserves_files() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  plan_file="$parsed_repo/unstage-plan.out"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --name 'dependency-sync'; then
+      TEST_FAILURE_DIAG='stage add dependency-sync failed before dry-run'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage unstage examples --name 'dependency-sync' --dry-run >"$plan_file"; then
+      TEST_FAILURE_DIAG='stage unstage --dry-run command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    plan_lines=$(grep 'PLAN:' "$plan_file" || true)
+    if [ -z "$plan_lines" ]; then
+      TEST_FAILURE_DIAG='unstage dry-run missing PLAN output'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    for hook in post-merge post-rewrite post-checkout post-commit; do
+      part_path="$parsed_repo/.githooks/${hook}.d/dependency-sync.sh"
+      if [ ! -x "$part_path" ]; then
+        TEST_FAILURE_DIAG="unstage dry-run removed file from $hook"
+        rc=1
+        break
+      fi
+    done
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+test_uninstall_does_not_remove_vendored_library() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+  vendor_dir="$parsed_repo/.githooks"
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! mkdir -p "$vendor_dir"; then
+      TEST_FAILURE_DIAG='failed to create vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp "$REPO_ROOT/install.sh" "$vendor_dir/install.sh"; then
+      TEST_FAILURE_DIAG='failed to copy install.sh into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp "$REPO_ROOT/_runner.sh" "$vendor_dir/_runner.sh"; then
+      TEST_FAILURE_DIAG='failed to copy runner into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp -R "$REPO_ROOT/lib" "$vendor_dir/"; then
+      TEST_FAILURE_DIAG='failed to copy lib directory into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! cp -R "$REPO_ROOT/examples" "$vendor_dir/"; then
+      TEST_FAILURE_DIAG='failed to copy examples directory into vendored directory'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! chmod 755 "$vendor_dir/install.sh" "$vendor_dir/_runner.sh"; then
+      TEST_FAILURE_DIAG='failed to chmod vendored scripts'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" ./.githooks/install.sh uninstall; then
+      TEST_FAILURE_DIAG='vendored uninstall command failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if [ ! -f "$vendor_dir/lib/common.sh" ]; then
+      TEST_FAILURE_DIAG='vendored uninstall removed lib/common.sh'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$parsed_repo" "$parsed_home" ./.githooks/install.sh stage add examples --name 'git-crypt-enforce'; then
+      TEST_FAILURE_DIAG='vendored stage add failed after uninstall'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    staged_part="$parsed_repo/.githooks/pre-commit.d/git-crypt-enforce.sh"
+    if [ ! -x "$staged_part" ]; then
+      TEST_FAILURE_DIAG='vendored stage add did not stage expected part after uninstall'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
 test_stage_list_outputs_entries() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
@@ -725,7 +921,7 @@ test_stage_help_subcommands() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-TOTAL_TESTS=15
+TOTAL_TESTS=18
 
 tap_plan "$TOTAL_TESTS"
 
@@ -752,6 +948,9 @@ run_test 'stage add with --name filters to one part' test_add_with_name_filter_s
 run_test 'stage add with glob name filter stages matching scripts' test_add_with_name_glob_matches_multiple_parts
 run_test 'stage add from vendored toolkit skips duplicate runner copy' test_add_from_vendored_toolkit_skips_duplicate_runner_copy
 run_test 'stage remove accepts bare names' test_stage_remove_by_name
+run_test 'stage unstage removes matching parts' test_unstage_removes_matching_parts
+run_test 'stage unstage --dry-run reports plan without changes' test_unstage_dry_run_preserves_files
+run_test 'uninstall retains vendored library for restaging' test_uninstall_does_not_remove_vendored_library
 run_test 'stage list prints header and entries' test_stage_list_outputs_entries
 run_test 'global help and version flags respond' test_global_help_and_version
 run_test 'hooks list pre-commit shows summary' test_hooks_list_specific

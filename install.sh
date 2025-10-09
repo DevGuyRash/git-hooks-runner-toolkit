@@ -206,13 +206,53 @@ create_parts_dir() {
 }
 
 remove_runner_files() {
+  runner_source="${SCRIPT_DIR%/}/_runner.sh"
+  lib_source="${SCRIPT_DIR%/}/lib/common.sh"
+  planned_removal=0
+  performed_removal=0
+
+  if [ -f "${runner_target}" ]; then
+    if [ -f "${runner_source}" ] && [ "${runner_target}" -ef "${runner_source}" ]; then
+      githooks_log_info "skip removing ${runner_target}; shared with installer source"
+    else
+      if [ "${DRY_RUN}" -eq 1 ]; then
+        log_action "DRY-RUN: remove ${runner_target}"
+        planned_removal=1
+      else
+        rm -f "${runner_target}"
+        performed_removal=1
+        githooks_log_info "removed ${runner_target}"
+      fi
+    fi
+  fi
+
+  if [ -f "${lib_target}" ]; then
+    if [ -f "${lib_source}" ] && [ "${lib_target}" -ef "${lib_source}" ]; then
+      githooks_log_info "skip removing ${lib_target}; shared with installer source"
+    else
+      if [ "${DRY_RUN}" -eq 1 ]; then
+        log_action "DRY-RUN: remove ${lib_target}"
+        planned_removal=1
+      else
+        rm -f "${lib_target}"
+        performed_removal=1
+        githooks_log_info "removed ${lib_target}"
+      fi
+    fi
+  fi
+
   if [ "${DRY_RUN}" -eq 1 ]; then
-    log_action "DRY-RUN: remove ${runner_target}"
-    log_action "DRY-RUN: remove ${lib_target}"
+    if [ "${planned_removal}" -eq 0 ]; then
+      githooks_log_info "DRY-RUN: no managed runner artefacts to remove"
+    fi
     return 0
   fi
-  rm -f "${runner_target}" "${lib_target}"
-  githooks_log_info "removed runner artefacts from ${shared_root}"
+
+  if [ "${performed_removal}" -eq 1 ]; then
+    githooks_log_info "removed runner artefacts from ${shared_root}"
+  else
+    githooks_log_info "no runner artefacts removed"
+  fi
 }
 
 stage_append_unique() {
@@ -907,16 +947,16 @@ stage_process_file() {
   IFS=${stage_hook_saved_ifs}
 }
 
-run_stage() {
+stage_reset_state() {
   STAGE_COPY_COUNT=0
   STAGE_SKIP_IDENTICAL=0
   STAGE_SKIPPED_FILES=0
   STAGE_RUNNER_READY=0
-  if [ "${STAGE_LEGACY_USED}" -eq 1 ]; then
-    githooks_log_warn "stage: legacy selector syntax detected; prefer positional sources with --hook/--name filters"
-  fi
-  stage_ensure_default_sources
+}
+
+stage_build_plan() {
   stage_prepare_plan_file
+  STAGE_PLAN_COUNT=0
   stage_any_source=0
   stage_saved_ifs=$IFS
   for stage_source in ${STAGE_SOURCES_ORDERED}; do
@@ -944,19 +984,38 @@ run_stage() {
     stage_cleanup_plan
     return 1
   fi
+  return 0
+}
+
+stage_finish_no_plan() {
+  stage_action=$1
+  stage_zero_phrase=$2
+  if stage_summary_requested; then
+    githooks_log_info "PLAN: no matching files"
+  fi
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    githooks_log_info "${stage_action} dry-run complete"
+  else
+    githooks_log_info "${stage_action} complete: ${stage_zero_phrase}"
+  fi
+  if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
+    githooks_log_info "${stage_action} skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
+  fi
+  stage_cleanup_plan
+  return 0
+}
+
+run_stage() {
+  stage_reset_state
+  if [ "${STAGE_LEGACY_USED}" -eq 1 ]; then
+    githooks_log_warn "stage: legacy selector syntax detected; prefer positional sources with --hook/--name filters"
+  fi
+  stage_ensure_default_sources
+  if ! stage_build_plan; then
+    return 1
+  fi
   if [ "${STAGE_PLAN_COUNT}" -eq 0 ]; then
-    if stage_summary_requested; then
-      githooks_log_info "PLAN: no matching files"
-    fi
-    if [ "${DRY_RUN}" -eq 1 ]; then
-      githooks_log_info "stage dry-run complete"
-    else
-      githooks_log_info "stage complete: 0 file(s) updated"
-      if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
-        githooks_log_info "stage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
-      fi
-    fi
-    stage_cleanup_plan
+    stage_finish_no_plan "stage" "0 file(s) updated"
     return 0
   fi
   stage_sort_plan_if_needed
@@ -983,6 +1042,52 @@ run_stage() {
   fi
   if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
     githooks_log_info "stage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
+  fi
+  return 0
+}
+
+run_stage_unstage() {
+  stage_reset_state
+  if [ "${STAGE_LEGACY_USED}" -eq 1 ]; then
+    githooks_log_warn "stage: legacy selector syntax detected; prefer positional sources with --hook/--name filters"
+  fi
+  stage_ensure_default_sources
+  if ! stage_build_plan; then
+    return 1
+  fi
+  if [ "${STAGE_PLAN_COUNT}" -eq 0 ]; then
+    stage_finish_no_plan "unstage" "0 file(s) removed"
+    return 0
+  fi
+  stage_sort_plan_if_needed
+  stage_emit_plan_summary
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    githooks_log_info "unstage dry-run complete"
+    stage_cleanup_plan
+    return 0
+  fi
+  UNSTAGE_REMOVE_COUNT=0
+  UNSTAGE_MISSING_COUNT=0
+  while IFS='|' read -r plan_hook plan_name plan_source plan_rel plan_file; do
+    [ -n "${plan_hook}" ] || continue
+    parts_dir=$(githooks_parts_dir "${plan_hook}")
+    stage_dest="${parts_dir%/}/${plan_name}"
+    githooks_log_info "unstage plan ${plan_rel} -> ${plan_hook}"
+    if [ -f "${stage_dest}" ]; then
+      maybe_run "remove ${stage_dest}" rm -f "${stage_dest}"
+      UNSTAGE_REMOVE_COUNT=$((UNSTAGE_REMOVE_COUNT + 1))
+    else
+      githooks_log_info "unstage skip missing ${stage_dest}"
+      UNSTAGE_MISSING_COUNT=$((UNSTAGE_MISSING_COUNT + 1))
+    fi
+  done <"${STAGE_PLAN_FILE}"
+  stage_cleanup_plan
+  githooks_log_info "unstage complete: ${UNSTAGE_REMOVE_COUNT} file(s) removed"
+  if [ "${UNSTAGE_MISSING_COUNT}" -gt 0 ]; then
+    githooks_log_info "unstage skipped ${UNSTAGE_MISSING_COUNT} missing file(s)"
+  fi
+  if [ "${STAGE_SKIPPED_FILES}" -gt 0 ]; then
+    githooks_log_info "unstage skipped ${STAGE_SKIPPED_FILES} file(s) due to filters or missing metadata"
   fi
   return 0
 }
@@ -1045,6 +1150,7 @@ DESCRIPTION
 
 SUBCOMMANDS
     add     Plan and copy scripts from directories into managed hook slots.
+    unstage Reverse stage add by removing staged scripts that match sources.
     remove  Delete one or all staged scripts for a given hook.
     list    Display staged scripts, grouped by hook.
     help    Show this manual or a subcommand-specific manual.
@@ -1112,6 +1218,48 @@ EXAMPLES
 
 SEE ALSO
     githooks stage remove, githooks stage list, README section “Adding Hook Parts”
+HELP
+}
+
+print_stage_unstage_usage() {
+  cat <<'HELP'
+NAME
+    githooks stage unstage - Remove staged hook parts matching source files.
+
+SYNOPSIS
+    githooks stage unstage SOURCE [OPTIONS]
+
+DESCRIPTION
+    Walks SOURCE (examples, hooks, or a custom directory), detects executable
+    *.sh files, resolves their target hooks from metadata comments or directory
+    placement, and removes any matching staged scripts from .githooks/<hook>.d.
+    Filters restrict removals to specific hooks or filenames.
+
+OPTIONS
+    --hook HOOKS | --hook=HOOKS | --for-hook HOOKS
+        Restrict unstaging to the listed hooks (comma-separated). Scripts whose
+        resolved hook set does not intersect the filter are ignored.
+
+    --name PATTERNS | --name=PATTERNS | --part PATTERNS
+        Accept a comma-separated list of shell globs. A staged script is only
+        removed when its basename, or that basename without a trailing .sh,
+        matches at least one pattern (e.g. `dependency-sync`, `lint-*`).
+
+    -n, --dry-run
+        Emit the unstaging plan without removing files.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage unstage examples --name dependency-sync
+        Remove the dependency-sync example from every hook where it is staged.
+
+    githooks stage unstage hooks --hook pre-commit
+        Remove staged scripts sourced from hooks/ that target pre-commit.
+
+SEE ALSO
+    githooks stage add, githooks stage remove, README section “Managing Staged Parts”
 HELP
 }
 
@@ -1718,6 +1866,68 @@ cmd_stage_add() {
   run_stage
 }
 
+cmd_stage_unstage() {
+  if [ "$#" -eq 0 ]; then
+    githooks_die "stage unstage requires a source directory"
+  fi
+  case "$1" in
+    -h|--help|help)
+      print_stage_unstage_usage
+      return 0
+      ;;
+  esac
+  stage_add_source "$1"
+  shift
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --for-hook|--hook)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--hook requires an argument"
+        fi
+        stage_add_hook "$2"
+        shift 2
+        ;;
+      --for-hook=*|--hook=*)
+        stage_add_hook "${1#*=}"
+        shift
+        ;;
+      --name|--part)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--name requires an argument"
+        fi
+        stage_add_name "$2"
+        shift 2
+        ;;
+      --name=*|--part=*)
+        stage_add_name "${1#*=}"
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      -h|--help|help)
+        print_stage_unstage_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -* )
+        githooks_die "unknown option for stage unstage: $1"
+        ;;
+      *)
+        githooks_die "unexpected argument for stage unstage: $1"
+        ;;
+    esac
+  done
+  if [ "$#" -gt 0 ]; then
+    githooks_die "unexpected argument for stage unstage: $1"
+  fi
+  run_stage_unstage
+}
+
 cmd_stage_remove() {
   if [ "$#" -gt 0 ]; then
     case "$1" in
@@ -1849,6 +2059,9 @@ cmd_stage() {
     add)
       cmd_stage_add "$@"
       ;;
+    unstage)
+      cmd_stage_unstage "$@"
+      ;;
     remove)
       cmd_stage_remove "$@"
       ;;
@@ -1864,6 +2077,10 @@ cmd_stage() {
         add)
           shift
           print_stage_add_usage
+          ;;
+        unstage)
+          shift
+          print_stage_unstage_usage
           ;;
         remove)
           shift
@@ -2111,6 +2328,9 @@ cmd_help() {
         case "$1" in
           add)
             print_stage_add_usage
+            ;;
+          unstage)
+            print_stage_unstage_usage
             ;;
           remove)
             print_stage_remove_usage
