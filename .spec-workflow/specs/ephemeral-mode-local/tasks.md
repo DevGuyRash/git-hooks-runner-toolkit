@@ -1,4 +1,4 @@
-- [ ] 1. Implement Ephemeral Lifecycle shell module
+- [x] 1. Implement Ephemeral Lifecycle shell module
   - File: lib/ephemeral_lifecycle.sh
   - Create install, refresh, and uninstall functions that manage `.git/.githooks/` provisioning, permission setting, and cleanup traps.
   - Ensure manifests capture previous `core.hooksPath` and precedence state.
