@@ -6,7 +6,7 @@
   - _Requirements: Requirement 1, Requirement 2_
   - _Prompt: Implement the task for spec ephemeral-mode-local, first run spec-workflow-guide to get the workflow guide then implement the task: Role: POSIX shell engineer experienced with Git config plumbing | Task: Build lifecycle functions in lib/ephemeral_lifecycle.sh that install, refresh, and uninstall Ephemeral Mode per Requirements 1 and 2; reuse existing install_common helpers, ensure traps restore prior state, and write manifest metadata | Restrictions: Do not modify tracked hooks directories, avoid non-POSIX syntax, keep functions idempotent | _Leverage: lib/install_common.sh, lib/config.sh, lib/logging.sh | _Requirements: Requirement 1, Requirement 2 | Success: Re-running install is idempotent, uninstall restores previous config and removes ephemeral assets, unit hooks validate manifest contents_
 
-- [ ] 2. Extend CLI dispatcher for `--mode ephemeral`
+- [x] 2. Extend CLI dispatcher for `--mode ephemeral`
   - File: install.sh
   - Add argument parsing and surface CLI messages for install/uninstall with Ephemeral Mode flags (`--hooks`, `--overlay`, `--force`, `--dry-run`).
   - Delegate to lifecycle module and print summaries including precedence info.
@@ -14,7 +14,7 @@
   - _Requirements: Requirement 1, Requirement 3_
   - _Prompt: Implement the task for spec ephemeral-mode-local, first run spec-workflow-guide to get the workflow guide then implement the task: Role: CLI-focused shell developer | Task: Wire `install.sh` to accept `--mode ephemeral` with appropriate options, validate mutually exclusive flags, and call lifecycle helpers while emitting concise summaries covering install location and precedence | Restrictions: Preserve existing CLI behavior for other modes, avoid duplicating logic already in helper libraries, ensure help text updates remain POSIX compliant | _Leverage: lib/cli_args.sh, lib/ephemeral_lifecycle.sh | _Requirements: Requirement 1, Requirement 3 | Success: `install.sh --mode ephemeral` installs correctly, conflicting flags error out, help output lists new options_
 
-- [ ] 3. Implement overlay precedence resolver
+- [x] 3. Implement overlay precedence resolver
   - File: lib/ephemeral_overlay.sh
   - Detect available hook roots (ephemeral `.git/.githooks/parts`, versioned `.githooks`, optional extra roots) and enforce ordering toggles.
   - Provide helper to list active roots for logging and runner consumption.
