@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/ephemeral-mode-local/design.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-22T02:32:47.521Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761100367519_kon5pd5sl",
+      "approvalTitle": "Ephemeral Mode Local Design"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-22T02:34:09.535Z",
+      "trigger": "approved",
+      "approvalId": "approval_1761100367519_kon5pd5sl",
+      "approvalTitle": "Ephemeral Mode Local Design"
+    }
+  ]
+}
