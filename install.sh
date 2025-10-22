@@ -12,6 +12,27 @@ if [ ! -f "${LIB_PATH}" ]; then
 fi
 . "${LIB_PATH}"
 
+CLI_ARGS_LIB="${SCRIPT_DIR}/lib/cli_args.sh"
+if [ ! -f "${CLI_ARGS_LIB}" ]; then
+  printf '[hook-runner] ERROR: missing CLI helper at %s\n' "${CLI_ARGS_LIB}" >&2
+  exit 1
+fi
+. "${CLI_ARGS_LIB}"
+
+EPHEMERAL_LIB="${SCRIPT_DIR}/lib/ephemeral_lifecycle.sh"
+if [ ! -f "${EPHEMERAL_LIB}" ]; then
+  printf '[hook-runner] ERROR: missing ephemeral lifecycle library at %s\n' "${EPHEMERAL_LIB}" >&2
+  exit 1
+fi
+. "${EPHEMERAL_LIB}"
+
+EPHEMERAL_OVERLAY_LIB="${SCRIPT_DIR}/lib/ephemeral_overlay.sh"
+if [ ! -f "${EPHEMERAL_OVERLAY_LIB}" ]; then
+  printf '[hook-runner] ERROR: missing ephemeral overlay library at %s\n' "${EPHEMERAL_OVERLAY_LIB}" >&2
+  exit 1
+fi
+. "${EPHEMERAL_OVERLAY_LIB}"
+
 print_usage() {
   cat <<'HELP'
 NAME
@@ -35,6 +56,9 @@ GLOBAL OPTIONS
 
     -n, --dry-run
         Simulate filesystem changes, echoing the work that would be performed.
+
+    --mode MODE
+        Select installation mode. Use `ephemeral` to install into .git/.githooks/.
 
 COMMAND OVERVIEW
     install
@@ -79,6 +103,8 @@ USE_ALL=0
 HOOKS_WERE_EXPLICIT=0
 REQUEST_STAGE=0
 REQUEST_UNINSTALL=0
+
+CLI_INSTALL_MODE="standard"
 
 TOOLKIT_VERSION="${TOOLKIT_VERSION:-0.3.0}"
 COMPAT_WARNED=0
@@ -1107,12 +1133,20 @@ DESCRIPTION
     are left untouched unless --force is supplied.
 
 OPTIONS
+    --mode MODE
+        Switch between installation strategies. Use `ephemeral` to place the runner
+        inside .git/.githooks/ while leaving tracked files untouched.
+
     --hooks HOOKS | --hooks=HOOKS | -H HOOKS
         Comma-separated hook names to manage. Overrides the default curated set.
 
     --all-hooks | --all | -A
         Manage every hook supported by Git. Useful for shared repositories that
         require wide coverage.
+
+    --overlay MODE
+        For Ephemeral Mode, choose precedence between `ephemeral-first`,
+        `versioned-first`, or `merge` when combining hook roots.
 
     --force | -f
         Overwrite any existing managed stub files. Safe for regenerating stubs.
@@ -1464,6 +1498,10 @@ OPTIONS
     -n, --dry-run
         Describe the filesystem removals without executing them.
 
+    --mode MODE
+        Uninstall a specific installation mode. Use `ephemeral` to clean the
+        local .git/.githooks/ assets and restore prior hooks configuration.
+
     -h, --help | help
         Display this manual entry.
 
@@ -1731,6 +1769,11 @@ else
 fi
 
 cmd_install() {
+  INSTALL_RESOLVED_MODE=$(githooks_cli_resolve_mode "${CLI_INSTALL_MODE}" "$@")
+  if [ "${INSTALL_RESOLVED_MODE}" = "ephemeral" ]; then
+    cmd_install_ephemeral "$@"
+    return 0
+  fi
   if [ "$#" -gt 0 ]; then
     case "$1" in
       help)
@@ -1798,6 +1841,105 @@ cmd_install() {
     write_stub "${hook}"
   done
   githooks_log_info "installation complete"
+}
+
+cmd_install_ephemeral() {
+  EPHEMERAL_MODE_OVERLAY=""
+  EPHEMERAL_MODE_HOOKS=""
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --mode)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--mode requires a value"
+        fi
+        githooks_cli_normalise_mode "$2" >/dev/null
+        shift 2
+        ;;
+      --mode=*)
+        githooks_cli_normalise_mode "${1#*=}" >/dev/null
+        shift
+        ;;
+      --hooks|-H)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--hooks requires an argument"
+        fi
+        parse_hook_list "$2"
+        HOOKS_WERE_EXPLICIT=1
+        shift 2
+        ;;
+      --hooks=*)
+        parse_hook_list "${1#*=}"
+        HOOKS_WERE_EXPLICIT=1
+        shift
+        ;;
+      --overlay)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--overlay requires a value"
+        fi
+        EPHEMERAL_MODE_OVERLAY=$(githooks_cli_normalise_overlay "$2")
+        shift 2
+        ;;
+      --overlay=*)
+        EPHEMERAL_MODE_OVERLAY=$(githooks_cli_normalise_overlay "${1#*=}")
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      --force|-f)
+        FORCE=1
+        shift
+        ;;
+      -h|--help|help)
+        print_install_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -* )
+        githooks_die "unknown option for install --mode ephemeral: $1"
+        ;;
+      *)
+        githooks_die "unexpected argument for install --mode ephemeral: $1"
+        ;;
+    esac
+  done
+
+  if [ "$#" -gt 0 ]; then
+    githooks_die "install --mode ephemeral does not accept positional arguments"
+  fi
+
+  if [ -n "${EPHEMERAL_MODE_OVERLAY}" ]; then
+    GITHOOKS_EPHEMERAL_PRECEDENCE="${EPHEMERAL_MODE_OVERLAY}"
+    export GITHOOKS_EPHEMERAL_PRECEDENCE
+  fi
+
+  EPHEMERAL_MODE_HOOKS="${HOOKS}"
+  if [ "${HOOKS_WERE_EXPLICIT}" -eq 0 ]; then
+    EPHEMERAL_MANIFEST_HOOKS=$(ephemeral_manifest_get MANAGED_HOOKS || true)
+    if [ -n "${EPHEMERAL_MANIFEST_HOOKS}" ]; then
+      EPHEMERAL_MODE_HOOKS="${EPHEMERAL_MANIFEST_HOOKS}"
+    fi
+  fi
+
+  if [ -z "${EPHEMERAL_MODE_HOOKS}" ]; then
+    githooks_die "Ephemeral Mode requires at least one managed hook"
+  fi
+
+  EPHEMERAL_MODE_HOOKS=$(printf '%s\n' "${EPHEMERAL_MODE_HOOKS}" | tr '\n' ' ')
+
+  # shellcheck disable=SC2086
+  ephemeral_install ${EPHEMERAL_MODE_HOOKS}
+
+  EPHEMERAL_ACTIVE_PATH=$(ephemeral_hooks_path_absolute)
+  EPHEMERAL_PRECEDENCE_MODE=$(ephemeral_precedence_mode)
+  githooks_log_info "Ephemeral Mode hooks path: ${EPHEMERAL_ACTIVE_PATH}"
+  githooks_log_info "Ephemeral precedence mode: ${EPHEMERAL_PRECEDENCE_MODE}"
+  EPHEMERAL_OVERLAY_ROOTS=$(ephemeral_overlay_resolve_roots)
+  ephemeral_overlay_log_roots "${EPHEMERAL_OVERLAY_ROOTS}"
 }
 
 cmd_stage_add() {
@@ -2270,6 +2412,11 @@ cmd_config() {
 }
 
 cmd_uninstall() {
+  UNINSTALL_RESOLVED_MODE=$(githooks_cli_resolve_mode "${CLI_INSTALL_MODE}" "$@")
+  if [ "${UNINSTALL_RESOLVED_MODE}" = "ephemeral" ]; then
+    cmd_uninstall_ephemeral "$@"
+    return 0
+  fi
   if [ "$#" -gt 0 ]; then
     case "$1" in
       -h|--help|help)
@@ -2308,6 +2455,67 @@ cmd_uninstall() {
   done
   remove_runner_files
   githooks_log_info "uninstallation complete"
+}
+
+cmd_uninstall_ephemeral() {
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --mode)
+        if [ "$#" -lt 2 ]; then
+          githooks_die "--mode requires a value"
+        fi
+        githooks_cli_normalise_mode "$2" >/dev/null
+        shift 2
+        ;;
+      --mode=*)
+        githooks_cli_normalise_mode "${1#*=}" >/dev/null
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      --force|-f)
+        FORCE=1
+        shift
+        ;;
+      -h|--help|help)
+        print_uninstall_usage
+        return 0
+        ;;
+      --overlay*|--hooks* )
+        githooks_die "uninstall --mode ephemeral does not support $1"
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -* )
+        githooks_die "unknown option for uninstall --mode ephemeral: $1"
+        ;;
+      *)
+        githooks_die "unexpected argument for uninstall --mode ephemeral: $1"
+        ;;
+    esac
+  done
+
+  if [ "$#" -gt 0 ]; then
+    githooks_die "uninstall --mode ephemeral does not accept positional arguments"
+  fi
+
+  EPHEMERAL_TARGET_PATH=$(ephemeral_hooks_path_absolute)
+  EPHEMERAL_PREVIOUS_CONFIG=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
+
+  ephemeral_uninstall
+
+  if [ -n "${EPHEMERAL_TARGET_PATH}" ]; then
+    githooks_log_info "Ephemeral Mode hooks path cleared: ${EPHEMERAL_TARGET_PATH}"
+  fi
+  if [ -n "${EPHEMERAL_PREVIOUS_CONFIG}" ]; then
+    githooks_log_info "core.hooksPath restored to ${EPHEMERAL_PREVIOUS_CONFIG}"
+  else
+    githooks_log_info "core.hooksPath restored to repository default"
+  fi
 }
 
 cmd_help() {
@@ -2406,6 +2614,17 @@ while [ "$#" -gt 0 ]; do
       ;;
     -n|--dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --mode)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--mode requires a value"
+      fi
+      CLI_INSTALL_MODE=$(githooks_cli_normalise_mode "$2")
+      shift 2
+      ;;
+    --mode=*)
+      CLI_INSTALL_MODE=$(githooks_cli_normalise_mode "${1#*=}")
       shift
       ;;
     --)

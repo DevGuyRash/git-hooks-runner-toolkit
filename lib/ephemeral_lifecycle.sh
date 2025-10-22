@@ -70,6 +70,13 @@ ephemeral_precedence_mode() {
 }
 
 ephemeral_manifest_roots() {
+  if command -v ephemeral_overlay_roots_serialized >/dev/null 2>&1; then
+    _ephemeral_overlay_serial=$(ephemeral_overlay_roots_serialized)
+    if [ -n "${_ephemeral_overlay_serial}" ]; then
+      printf '%s\n' "${_ephemeral_overlay_serial}"
+      return 0
+    fi
+  fi
   _ephemeral_primary_root=$(ephemeral_root_dir)
   printf '%s\n' "${_ephemeral_primary_root}"
 }
