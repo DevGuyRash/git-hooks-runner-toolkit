@@ -30,7 +30,7 @@
   - _Requirements: Requirement 1, Requirement 3_
   - _Prompt: Implement the task for spec ephemeral-mode-local, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Shell runtime maintainer | Task: Modify `_runner.sh` to query overlay roots from new helpers, iterate parts per hook with clear logging of source root, and maintain existing exit code semantics | Restrictions: Avoid regressions for non-ephemeral installs, preserve lexical ordering within each root, ensure hooks stop on non-zero when configured | _Leverage: lib/ephemeral_overlay.sh, lib/logging.sh | _Requirements: Requirement 1, Requirement 3 | Success: Runner executes overlay parts before versioned ones when configured, logs root names, existing behavior unchanged otherwise_
 
-- [ ] 5. Add automated tests for lifecycle and runner flows
+- [x] 5. Add automated tests for lifecycle and runner flows
   - Files: tests/ephemeral/lifecycle.bats, tests/ephemeral/runner.bats
   - Cover install→hook execution→reset scenarios, core.hooksPath restore, overlay precedence, and uninstall cleanup.
   - Simulate bare/worktree and existing hooksPath cases.
