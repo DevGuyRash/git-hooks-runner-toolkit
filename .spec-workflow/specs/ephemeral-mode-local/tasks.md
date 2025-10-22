@@ -22,7 +22,7 @@
   - _Requirements: Requirement 3_
   - _Prompt: Implement the task for spec ephemeral-mode-local, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Shell architect specializing in configuration overlays | Task: Build overlay resolution helpers that gather hook roots, apply precedence rules (ephemeral-first default, configurable via config/env), and expose ordered arrays for the runner; log root order clearly | Restrictions: No hard-coded paths outside `.git/`, keep functions pure and testable, respect existing `.githooks/` if present | _Leverage: lib/stage.sh, lib/config.sh | _Requirements: Requirement 3 | Success: Overlay order logs match expectations, config toggles adjust precedence, runner receives correct roots_
 
-- [ ] 4. Update runner invocation to honor overlay roots
+- [x] 4. Update runner invocation to honor overlay roots
   - File: _runner.sh
   - Import overlay resolver, iterate through ordered roots when executing hook parts, annotate logs with root origin.
   - Ensure behavior stays deterministic and compatible with existing stage execution.
