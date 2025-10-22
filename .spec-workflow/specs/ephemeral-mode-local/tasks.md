@@ -38,7 +38,7 @@
   - _Requirements: Requirement 1, Requirement 2, Requirement 3_
   - _Prompt: Implement the task for spec ephemeral-mode-local, first run spec-workflow-guide to get the workflow guide then implement the task: Role: QA engineer proficient in Bats and Git fixture setup | Task: Write integration-style Bats tests covering lifecycle idempotence, persistence across Git resets, overlay precedence, existing hooksPath restoration, and uninstall cleanup | Restrictions: Keep tests POSIX-friendly, isolate temp repos per test, ensure teardown cleans artifacts | _Leverage: tests/helpers/git_repo.sh, tests/helpers/assertions.sh | _Requirements: Requirement 1, Requirement 2, Requirement 3 | Success: Tests fail on regressions, pass across supported platforms in CI, verify cleanup and precedence behavior_
 
-- [ ] 6. Document Ephemeral Mode in CLI help and release notes
+- [x] 6. Document Ephemeral Mode in CLI help and release notes
   - Files: install.sh (help section), docs/ephemeral-mode.md, CHANGELOG.md
   - Add help text snippets, usage examples, uninstall instructions, and migration notes.
   - _Leverage: existing documentation style guides_
