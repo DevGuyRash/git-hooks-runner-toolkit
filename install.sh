@@ -47,6 +47,17 @@ DESCRIPTION
     and removing hook parts. Commands accept --dry-run so you can inspect
     planned actions before they modify the working tree.
 
+    Ephemeral Mode keeps toolkit assets inside the repository's .git
+    directory, letting you enable hooks without committing toolkit files.
+    Combine it with overlay controls to layer local automation alongside any
+    versioned hook directories. Use it when repository policy forbids tracked
+    tooling: all requirements are met with a writable Git worktree and a
+    POSIX-compliant shell. The companion guide at docs/ephemeral-mode.md covers
+    prerequisites, install steps, precedence rules, and uninstall workflows.
+    Use `githooks install --mode ephemeral --help` for CLI specifics and
+    `githooks uninstall --mode ephemeral --dry-run` to preview manifest-guided
+    cleanup before making changes.
+
 GLOBAL OPTIONS
     -h, --help
         Show this overview or, when combined with a command, print its manual.
@@ -58,7 +69,9 @@ GLOBAL OPTIONS
         Simulate filesystem changes, echoing the work that would be performed.
 
     --mode MODE
-        Select installation mode. Use `ephemeral` to install into .git/.githooks/.
+        Select installation mode. The default `standard` vendors files into
+        .githooks/. Use `ephemeral` to install under .git/.githooks/ while
+        leaving tracked files untouched; see docs/ephemeral-mode.md for details.
 
 COMMAND OVERVIEW
     install
@@ -1132,10 +1145,25 @@ DESCRIPTION
     per-hook directories (.githooks/<hook>.d) for staged scripts. Existing stubs
     are left untouched unless --force is supplied.
 
+    When invoked with `--mode ephemeral`, the runner and stubs live under
+    .git/.githooks/, leaving repository history untouched while persisting
+    across pulls and resets. The installer records manifest metadata so future
+    refresh or uninstall operations restore the previous hooks configuration.
+
+    Ephemeral installs default to `ephemeral-first` precedence. Use the
+    `--overlay` flag or matching config to reorder versioned `.githooks/`
+    content when layering local automation with tracked hooks.
+
+    Existing `.githooks/` directories remain compatible: overlay precedence
+    determines whether tracked or ephemeral hook parts dispatch first, and the
+    manifest retains prior `core.hooksPath` values for clean rollbacks.
+
 OPTIONS
     --mode MODE
-        Switch between installation strategies. Use `ephemeral` to place the runner
-        inside .git/.githooks/ while leaving tracked files untouched.
+        Switch between installation strategies. The default `standard` vendors
+        files into .githooks/. Use `ephemeral` to keep assets inside
+        .git/.githooks/ and snapshot the prior hooks configuration for
+        reversible uninstall.
 
     --hooks HOOKS | --hooks=HOOKS | -H HOOKS
         Comma-separated hook names to manage. Overrides the default curated set.
@@ -1146,7 +1174,10 @@ OPTIONS
 
     --overlay MODE
         For Ephemeral Mode, choose precedence between `ephemeral-first`,
-        `versioned-first`, or `merge` when combining hook roots.
+        `versioned-first`, or `merge` when combining hook roots. Defaults to
+        `ephemeral-first`. Values can also be set via the
+        GITHOOKS_EPHEMERAL_PRECEDENCE environment variable or
+        `git config githooks.ephemeral.precedence`.
 
     --force | -f
         Overwrite any existing managed stub files. Safe for regenerating stubs.
@@ -1157,7 +1188,23 @@ OPTIONS
     -h, --help | help
         Display this manual entry.
 
+NOTES
+    Ensure Git and a POSIX-compliant shell are available before running the
+    installer; target a writable repository worktree or bare `.git` directory.
+
+    Ephemeral installations snapshot precedence, hooks, and prior Git
+    configuration in `.git/.githooks/manifest.sh`. Inspect the manifest or run
+    `githooks config show` when troubleshooting, and use the same command after
+    installation to confirm the hooks path and overlay ordering captured in the
+    manifest.
+
 EXAMPLES
+    githooks install --mode ephemeral --hooks pre-commit,post-merge
+        Install Ephemeral Mode for specific hooks without touching tracked files.
+
+    githooks install --mode ephemeral --overlay versioned-first
+        Layer Ephemeral Mode while prioritizing staged hooks from `.githooks/`.
+
     githooks install --hooks pre-commit,pre-push
         Install the runner and only manage the pre-commit and pre-push hooks.
 
@@ -1494,18 +1541,35 @@ DESCRIPTION
     previously installed in .git/hooks by the toolkit. Files not recognised as
     managed stubs are left untouched to avoid destroying user-managed hooks.
 
+    For Ephemeral Mode, the command removes `.git/.githooks/` assets, restores
+    the prior `core.hooksPath` recorded in the manifest, and deletes the
+    manifest itself while leaving tracked files untouched.
+
+    The uninstall flow consults manifest metadata to restore precedence
+    settings and prior hook roots. Re-run `githooks install --mode ephemeral`
+    after cleanup to reinstate the ephemeral environment.
+
 OPTIONS
     -n, --dry-run
         Describe the filesystem removals without executing them.
 
     --mode MODE
         Uninstall a specific installation mode. Use `ephemeral` to clean the
-        local .git/.githooks/ assets and restore prior hooks configuration.
+        local .git/.githooks/ assets and restore the prior hooks configuration
+        captured during install.
 
     -h, --help | help
         Display this manual entry.
 
+NOTES
+    Pair `--dry-run` with Ephemeral Mode to review manifest-driven removals
+    before touching the filesystem. After cleanup, run `githooks config show`
+    to confirm the restored hooks path and precedence state.
+
 EXAMPLES
+    githooks uninstall --mode ephemeral
+        Remove Ephemeral Mode assets and reinstate the previous hooks path.
+
     githooks uninstall --dry-run
         Preview which artefacts would be removed.
 
