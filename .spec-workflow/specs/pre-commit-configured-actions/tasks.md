@@ -6,7 +6,7 @@
   - _Requirements: 1, 2, 4_
   - _Prompt: Role: POSIX Shell Developer specializing in reusable hook utilities | Task: Implement lib/watch-configured-actions.sh and refactor examples/watch-configured-actions.sh to consume it, fulfilling requirements 1, 2, and 4 by extracting shared logic and wiring centralized config discovery | Restrictions: Maintain POSIX sh compatibility, preserve existing logging semantics, do not alter behaviour for hooks not covered by requirements | _Leverage: examples/watch-configured-actions.sh, lib/common.sh_ | _Requirements: 1, 2, 4 | Success: Library provides reusable functions, existing post-event script delegates to it, tests for post-merge example keep passing_
 
-- [ ] 2. Implement pre-commit entrypoint
+- [x] 2. Implement pre-commit entrypoint
   - File: examples/watch-configured-actions-pre-commit.sh (new)
   - Create a thin wrapper that gathers staged changes, invokes shared library routines, and exposes metadata for the `pre-commit` hook.
   - Purpose: Deliver pre-commit automation matching requirements while honouring centralized config.
