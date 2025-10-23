@@ -138,6 +138,9 @@ STAGE_DETECTED_SOURCE="none"
 STAGE_PLAN_FILE=""
 STAGE_PLAN_COUNT=0
 STAGE_PLANNED_DESTS=""
+STAGE_REQUIRE_WATCH_CONFIG=0
+STAGE_WATCH_CONFIG_DONE=0
+STAGE_WATCH_CONFIG_WARNED=0
 
 parse_hook_list() {
   if [ "$#" -ne 1 ]; then
@@ -616,6 +619,91 @@ stage_add_plan_entry() {
   STAGE_PLAN_COUNT=$((STAGE_PLAN_COUNT + 1))
 }
 
+stage_register_support_assets() {
+  if [ "$#" -ne 2 ]; then
+    return 0
+  fi
+  support_name=$1
+  support_source=$2
+  case "${support_name}" in
+    watch-configured-actions.sh|watch-configured-actions-pre-commit.sh)
+      case "${support_source}" in
+        "${SCRIPT_DIR%/}/examples")
+          STAGE_REQUIRE_WATCH_CONFIG=1
+          ;;
+      esac
+      ;;
+  esac
+}
+
+stage_warn_legacy_watch_config() {
+  if [ "$#" -ne 1 ]; then
+    return 0
+  fi
+  if [ "${STAGE_WATCH_CONFIG_WARNED}" -eq 1 ]; then
+    return 0
+  fi
+  config_hint=$1
+  legacy_root="${shared_root%/}"
+  for legacy in \
+    "${legacy_root}/watch-configured-actions.yml" \
+    "${legacy_root}/watch-configured-actions.yaml" \
+    "${legacy_root}/watch-configured-actions.json" \
+    "${legacy_root}/watch-config.yml" \
+    "${legacy_root}/watch-config.yaml" \
+    "${legacy_root}/watch-config.json"; do
+    if [ -f "${legacy}" ]; then
+      githooks_log_warn "watch-configured-actions example: legacy config detected at ${legacy}; migrate to ${config_hint}"
+      STAGE_WATCH_CONFIG_WARNED=1
+      break
+    fi
+  done
+}
+
+stage_install_watch_config() {
+  if [ "${STAGE_REQUIRE_WATCH_CONFIG}" -eq 0 ]; then
+    return 0
+  fi
+  if [ "${STAGE_WATCH_CONFIG_DONE}" -eq 1 ]; then
+    return 0
+  fi
+  config_src="${SCRIPT_DIR%/}/examples/config/watch-configured-actions.yml"
+  if [ ! -f "${config_src}" ]; then
+    githooks_log_warn "watch-configured-actions example: config asset missing at ${config_src}; skipping copy"
+    STAGE_WATCH_CONFIG_DONE=1
+    return 0
+  fi
+  config_dir="${hooks_root%/}/config"
+  config_dest="${config_dir%/}/watch-configured-actions.yml"
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    githooks_log_info "DRY-RUN: ensure config directory ${config_dir}"
+    githooks_log_info "DRY-RUN: stage config ${config_src} -> ${config_dest}"
+    STAGE_WATCH_CONFIG_DONE=1
+    stage_warn_legacy_watch_config "${config_dest}"
+    return 0
+  fi
+  githooks_mkdir_p "${config_dir}"
+  if [ -f "${config_dest}" ] && [ "${FORCE}" -eq 0 ] && stage_files_identical "${config_src}" "${config_dest}"; then
+    githooks_log_info "stage skip identical ${config_dest}"
+    STAGE_WATCH_CONFIG_DONE=1
+    stage_warn_legacy_watch_config "${config_dest}"
+    return 0
+  fi
+  config_tmp="${config_dest}.stage.$$"
+  if ! cp "${config_src}" "${config_tmp}"; then
+    rm -f "${config_tmp}" 2>/dev/null || true
+    githooks_die "Failed to stage config ${config_dest}"
+  fi
+  githooks_chmod 644 "${config_tmp}"
+  if ! mv "${config_tmp}" "${config_dest}"; then
+    rm -f "${config_tmp}" 2>/dev/null || true
+    githooks_die "Failed to finalise config ${config_dest}"
+  fi
+  githooks_log_info "stage config ${config_dest}"
+  STAGE_WATCH_CONFIG_DONE=1
+  stage_warn_legacy_watch_config "${config_dest}"
+}
+
 stage_summary_requested() {
   if [ "${STAGE_SUMMARY}" -eq 1 ] || [ "${DRY_RUN}" -eq 1 ]; then
     return 0
@@ -964,6 +1052,7 @@ stage_process_file() {
     githooks_log_info "stage skip ${stage_basename}: filtered by name"
     return 0
   fi
+  stage_register_support_assets "${stage_basename}" "${stage_source}"
   stage_detect_hooks_for_file "${stage_file}" "${stage_source}"
   stage_hooks=${STAGE_DETECTED_HOOKS}
   if [ -z "${stage_hooks}" ]; then
@@ -1008,6 +1097,9 @@ stage_reset_state() {
   STAGE_SKIP_IDENTICAL=0
   STAGE_SKIPPED_FILES=0
   STAGE_RUNNER_READY=0
+  STAGE_REQUIRE_WATCH_CONFIG=0
+  STAGE_WATCH_CONFIG_DONE=0
+  STAGE_WATCH_CONFIG_WARNED=0
 }
 
 stage_build_plan() {
@@ -1071,6 +1163,7 @@ run_stage() {
     return 1
   fi
   if [ "${STAGE_PLAN_COUNT}" -eq 0 ]; then
+    stage_install_watch_config
     stage_finish_no_plan "stage" "0 file(s) updated"
     return 0
   fi
@@ -1090,7 +1183,9 @@ run_stage() {
     stage_dest="${parts_dir%/}/${plan_name}"
     githooks_log_info "stage plan ${plan_rel} -> ${plan_hook}"
     stage_copy_part "${plan_file}" "${stage_dest}"
+    stage_install_watch_config
   done <"${STAGE_PLAN_FILE}"
+  stage_install_watch_config
   stage_cleanup_plan
   githooks_log_info "stage complete: ${STAGE_COPY_COUNT} file(s) updated"
   if [ "${STAGE_SKIP_IDENTICAL}" -gt 0 ]; then

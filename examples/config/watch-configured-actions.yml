@@ -1,0 +1,12 @@
+- name: docs build
+  patterns:
+    - "docs/**/*.md"
+    - "docs/**/*.yaml"
+  commands:
+    - "./scripts/build-docs"
+- name: lint configs
+  patterns:
+    - "*.json"
+  commands:
+    - "npm run lint-configs"
+  continue_on_error: true
