@@ -14,7 +14,7 @@
   - _Requirements: 1, 4_
   - _Prompt: Role: Git Hooks Engineer with expertise in pre-commit workflows | Task: Add a pre-commit entrypoint using lib/watch-configured-actions.sh to inspect staged changes and execute configured actions per requirements 1 and 4 | Restrictions: Use only POSIX sh constructs, ensure staged-only diffing, keep optional mark-file behaviour intact | _Leverage: lib/watch-configured-actions.sh, lib/common.sh_ | _Requirements: 1, 4 | Success: Script runs during pre-commit, honours centralized config, exits appropriately on matches and failures_
 
-- [ ] 3. Update installer staging for centralized configs
+- [x] 3. Update installer staging for centralized configs
   - Files: install.sh, examples/config/watch-configured-actions.yml (new location)
   - Ensure example configs stage into `{hooks-root}/config/` with shared filenames for every install target (persistent and ephemeral) while emitting deprecation warnings when legacy paths are used.
   - Purpose: Align staging pipeline with centralized config requirement.
