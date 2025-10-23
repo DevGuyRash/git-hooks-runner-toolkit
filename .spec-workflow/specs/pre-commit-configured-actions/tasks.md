@@ -22,7 +22,7 @@
   - _Requirements: 2_
   - _Prompt: Role: Shell Automation Developer focused on install tooling | Task: Modify install.sh staging logic so example configs land in {hooks-root}/config/watch-configured-actions.yml for all targets, satisfying requirement 2 | Restrictions: Preserve existing CLI flags/behaviour, handle ephemeral temp directories carefully, add warnings without breaking existing installs | _Leverage: install.sh staging helpers, examples directory structure_ | _Requirements: 2 | Success: Staging places config under central directory across install modes and legacy fallbacks warn correctly_
 
-- [ ] 4. Expand tests for hooks and installer
+- [x] 4. Expand tests for hooks and installer
   - Files: tests/examples/watch_configured_actions_pre_commit.sh (new), tests/examples/watch_configured_actions.sh, tests/test_git_hooks_examples.sh or relevant harness pieces
   - Add coverage for pre-commit execution with centralized config, verify installer copies configs correctly in persistent and ephemeral modes, and ensure existing post-event tests still pass.
   - Purpose: Guard against regressions introduced by refactor and config relocation.
