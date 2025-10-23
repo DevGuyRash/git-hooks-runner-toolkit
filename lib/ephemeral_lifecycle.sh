@@ -204,25 +204,33 @@ ephemeral_copy_runner_assets() {
   _ephemeral_lib_dir=$(ephemeral_lib_dir)
   _ephemeral_runner_src="$(ephemeral_toolkit_root)/_runner.sh"
   _ephemeral_common_src="$(ephemeral_toolkit_root)/lib/common.sh"
+  _ephemeral_watch_src="$(ephemeral_toolkit_root)/lib/watch-configured-actions.sh"
   if [ ! -f "${_ephemeral_runner_src}" ]; then
     githooks_die "Missing runner source at ${_ephemeral_runner_src}"
   fi
   if [ ! -f "${_ephemeral_common_src}" ]; then
     githooks_die "Missing shared library at ${_ephemeral_common_src}"
   fi
+  if [ ! -f "${_ephemeral_watch_src}" ]; then
+    githooks_die "Missing watch-configured-actions library at ${_ephemeral_watch_src}"
+  fi
   ephemeral_prepare_directory "${_ephemeral_root}"
   ephemeral_prepare_directory "${_ephemeral_lib_dir}"
   _ephemeral_runner_dst="${_ephemeral_root%/}/_runner.sh"
   _ephemeral_common_dst="${_ephemeral_lib_dir%/}/common.sh"
+  _ephemeral_watch_dst="${_ephemeral_lib_dir%/}/watch-configured-actions.sh"
   if ephemeral_in_dry_run; then
     githooks_log_info "DRY-RUN: copy runner to ${_ephemeral_runner_dst}"
     githooks_log_info "DRY-RUN: copy library to ${_ephemeral_common_dst}"
+    githooks_log_info "DRY-RUN: copy watch-configured-actions library to ${_ephemeral_watch_dst}"
     return 0
   fi
   githooks_copy_file "${_ephemeral_runner_src}" "${_ephemeral_runner_dst}"
   githooks_chmod 755 "${_ephemeral_runner_dst}"
   githooks_copy_file "${_ephemeral_common_src}" "${_ephemeral_common_dst}"
   githooks_chmod 644 "${_ephemeral_common_dst}"
+  githooks_copy_file "${_ephemeral_watch_src}" "${_ephemeral_watch_dst}"
+  githooks_chmod 644 "${_ephemeral_watch_dst}"
 }
 
 ephemeral_write_stub() {

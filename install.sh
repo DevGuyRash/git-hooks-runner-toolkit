@@ -196,6 +196,7 @@ install_runner() {
   maybe_run "create library directory ${shared_root%/}/lib" githooks_mkdir_p "${shared_root%/}/lib"
   maybe_run "copy runner to ${runner_target}" githooks_copy_file "${SCRIPT_DIR}/_runner.sh" "${runner_target}"
   maybe_run "copy shared library to ${lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/common.sh" "${lib_target}"
+  maybe_run "copy watch-configured-actions library to ${watch_lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/watch-configured-actions.sh" "${watch_lib_target}"
   maybe_run "chmod runner ${runner_target}" githooks_chmod 755 "${runner_target}"
 }
 
@@ -247,6 +248,7 @@ create_parts_dir() {
 remove_runner_files() {
   runner_source="${SCRIPT_DIR%/}/_runner.sh"
   lib_source="${SCRIPT_DIR%/}/lib/common.sh"
+  watch_lib_source="${SCRIPT_DIR%/}/lib/watch-configured-actions.sh"
   planned_removal=0
   performed_removal=0
 
@@ -276,6 +278,21 @@ remove_runner_files() {
         rm -f "${lib_target}"
         performed_removal=1
         githooks_log_info "removed ${lib_target}"
+      fi
+    fi
+  fi
+
+  if [ -f "${watch_lib_target}" ]; then
+    if [ -f "${watch_lib_source}" ] && [ "${watch_lib_target}" -ef "${watch_lib_source}" ]; then
+      githooks_log_info "skip removing ${watch_lib_target}; shared with installer source"
+    else
+      if [ "${DRY_RUN}" -eq 1 ]; then
+        log_action "DRY-RUN: remove ${watch_lib_target}"
+        planned_removal=1
+      else
+        rm -f "${watch_lib_target}"
+        performed_removal=1
+        githooks_log_info "removed ${watch_lib_target}"
       fi
     fi
   fi
@@ -1824,6 +1841,7 @@ shared_root=$(githooks_shared_root)
 hooks_root=$(githooks_hooks_root)
 runner_target="${shared_root%/}/_runner.sh"
 lib_target="${shared_root%/}/lib/common.sh"
+watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
 
 
 if githooks_is_bare_repo; then
