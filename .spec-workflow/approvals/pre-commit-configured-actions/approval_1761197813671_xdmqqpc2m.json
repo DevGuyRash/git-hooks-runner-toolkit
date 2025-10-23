@@ -1,0 +1,12 @@
+{
+  "id": "approval_1761197813671_xdmqqpc2m",
+  "title": "pre-commit-configured-actions requirements - rev 2",
+  "filePath": ".spec-workflow/specs/pre-commit-configured-actions/requirements.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-10-23T05:36:53.671Z",
+  "category": "spec",
+  "categoryName": "pre-commit-configured-actions",
+  "response": "Needs revision",
+  "respondedAt": "2025-10-23T05:44:33.324Z"
+}

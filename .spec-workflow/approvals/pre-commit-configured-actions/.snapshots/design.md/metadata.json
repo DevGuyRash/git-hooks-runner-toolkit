@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/pre-commit-configured-actions/design.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-23T05:53:00.553Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761198780550_0olga6zt2",
+      "approvalTitle": "pre-commit-configured-actions design"
+    }
+  ]
+}

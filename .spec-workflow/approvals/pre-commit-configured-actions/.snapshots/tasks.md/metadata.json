@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/pre-commit-configured-actions/tasks.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-23T05:58:51.282Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761199131279_fotx3vr1j",
+      "approvalTitle": "pre-commit-configured-actions tasks"
+    }
+  ]
+}

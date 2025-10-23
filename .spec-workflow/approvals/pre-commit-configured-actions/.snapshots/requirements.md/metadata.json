@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/pre-commit-configured-actions/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-23T05:31:03.703Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761197463700_sjf527tau",
+      "approvalTitle": "pre-commit-configured-actions requirements"
+    }
+  ]
+}
