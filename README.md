@@ -36,24 +36,26 @@ Here is a diagram that illustrates the process:
 
 ```mermaid
 graph TD
-    subgraph "Git Event"
-        direction TB
-        A["Developer action (e.g., 'git commit')"] --> B{"Git hook ('pre-commit')"}
-    end
+  subgraph "Git Event"
+    direction TB
+    A["Developer action (e.g., 'git commit')"] --> B{"Git hook ('pre-commit')"}
+  end
 
-    subgraph "Runner Toolkit"
-        direction TB
-        C["Stub: '.git/hooks/pre-commit'"] -->|exec| D(("Shared runner: '.githooks/_runner.sh'"))
-        D -->|sources| E["Helpers: '.githooks/lib/common.sh'"]
-        D -->|enumerates| F["Parts directory: '.githooks/pre-commit.d/'"]
-        F -->|lexical order| G["'10-lint.sh'"]
-        F -->|lexical order| H["'20-test.sh'"]
-    end
+  subgraph "Runner Toolkit"
+    direction TB
+    C["Stub: '.git/hooks/pre-commit'"] -->|"exec"| D(("Shared runner: '.githooks/_runner.sh'"))
+    D -->|"sources"| E["Helpers: '.githooks/lib/common.sh'"]
+    D -->|"enumerates"| F["Parts directory: '.githooks/pre-commit.d/'"]
+    F -->|"lexical order"| G["'10-lint.sh'"]
+    F -->|"lexical order"| H["'20-test.sh'"]
+  end
 
-    B -->|calls| C
-    G -->|runs| I["Action(s)"]
-    H -->|runs| J["Action(s)"]
+  B -->|"calls"| C
+  G -->|"runs"| I["Action(s)"]
+  H -->|"runs"| J["Action(s)"]
 ```
+
+> **Note:** If you install in **Ephemeral Mode**, the runner lives under `.git/.githooks/` instead, and the runner dynamically overlays ephemeral parts with any versioned `.githooks` parts. See **Advanced Usage → Ephemeral Mode** below and the detailed [Ephemeral Mode guide](docs/ephemeral-mode.md).
 
 ## Getting Started
 
@@ -65,21 +67,24 @@ You can add the toolkit to your project in two ways: as a direct clone or as a G
 
 This is the simplest method and is recommended for most users. It integrates the toolkit directly into your project, making hook management straightforward.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
-    ```
+1. **Clone the repository:**
 
-2.  **Integrate it into your project:** By removing the toolkit's `.git` directory, you can track all its files within your main repository.
-    ```bash
-    rm -rf .githooks/.git
-    ```
+   ```bash
+   git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git .githooks
+   ```
 
-3.  **Commit the toolkit:**
-    ```bash
-    git add .githooks
-    git commit -m "chore: vendor git-hooks-runner toolkit"
-    ```
+2. **Integrate it into your project:** By removing the toolkit's `.git` directory, you can track all its files within your main repository.
+
+   ```bash
+   rm -rf .githooks/.git
+   ```
+
+3. **Commit the toolkit:**
+
+   ```bash
+   git add .githooks
+   git commit -m "chore: vendor git-hooks-runner toolkit"
+   ```
 
 With this approach, any custom hooks you add to `.githooks/` are simply part of your project and can be committed directly. The trade-off is that updating the toolkit requires a manual merge from the upstream repository.
 
@@ -87,21 +92,23 @@ With this approach, any custom hooks you add to `.githooks/` are simply part of 
 
 If you want to keep the toolkit's history separate and update it easily, you can use a submodule. However, this is an advanced workflow that is considerably more complex, especially for teams.
 
-**Requirement: Fork the Toolkit**
+**Requirement: Fork the Toolkit**:
 
 To track custom hooks in a submodule across a team, you must first **fork** the `git-hooks-runner-toolkit` repository. You cannot use the original repository directly, because your team will need a shared remote to push custom hook changes to.
 
-1.  **Fork the repository** on GitHub.
+1. **Fork the repository** on GitHub.
 
-2.  **Add your fork as a submodule:** Use the URL of *your fork*.
-    ```bash
-    git submodule add <URL_OF_YOUR_FORK> .githooks
-    git commit -m "chore: add forked git-hooks-runner as submodule"
-    ```
+2. **Add your fork as a submodule:** Use the URL of *your fork*.
+
+   ```bash
+   git submodule add <URL_OF_YOUR_FORK> .githooks
+   git commit -m "chore: add forked git-hooks-runner as submodule"
+   ```
 
 When you add or edit hooks, they are modified *inside* the `.githooks` submodule. To share these changes, you must commit and **push** them to your fork, and then commit the updated submodule reference in your main repository.
 
 **Workflow for updating hooks in a submodule:**
+
 ```bash
 # 1. Stage your hook part into the submodule
 .githooks/install.sh stage add hooks
@@ -115,6 +122,25 @@ git commit -m "chore: update hooks submodule with my-custom-hook"
 ```
 
 Because this workflow requires managing a separate forked repository and involves multiple steps, we strongly recommend the **Direct Clone** method unless you have a specific need for the submodule approach.
+
+#### Option 3: Skip vendoring and use **Ephemeral Mode** (no tracked files)
+
+If repository policy or workflow discourages committing tooling, you can install the runner under **`.git/.githooks/`** instead of tracking files in the repo. You may use a shared checkout of the toolkit (e.g. `~/.cache/git-hooks-runner-toolkit`) to install into any target repository.
+
+```bash
+# Fetch (or update) the toolkit locally once
+git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git \
+  "$HOME/.cache/git-hooks-runner-toolkit"
+
+# Inside the repository that should receive hooks:
+cd /path/to/your-repo
+"$HOME/.cache/git-hooks-runner-toolkit/install.sh" install \
+  --mode ephemeral \
+  --hooks pre-commit,post-merge \
+  --overlay ephemeral-first
+```
+
+You can still keep **hook parts** versioned in `.githooks/` (recommended), while the runner and stubs live ephemerally under `.git/.githooks/`. See the [Ephemeral Mode guide](docs/ephemeral-mode.md) for details.
 
 ### 2. Install the Hooks
 
@@ -144,7 +170,28 @@ You can inspect command-specific help at any time, for example:
 .githooks/install.sh stage help add
 ```
 
+#### Alternative: Install in **Ephemeral Mode** (no tracked runner files)
 
+If you have a vendored copy at `.githooks/`, you can still choose **Ephemeral Mode** to place the active runner under `.git/.githooks/` and optionally **overlay** it with your versioned parts:
+
+```bash
+# from your vendored toolkit
+.githooks/install.sh install --mode ephemeral \
+  --hooks pre-commit,post-merge \
+  --overlay versioned-first   # or: ephemeral-first (default), merge
+```
+
+Check the resolved configuration:
+
+```bash
+.githooks/install.sh config show
+```
+
+> **Tip:** Uninstall later with:
+>
+> ```bash
+> .githooks/install.sh uninstall --mode ephemeral
+> ```
 
 ### 3. Add Your First Hook Part
 
@@ -185,9 +232,9 @@ There are two ways to tell the installer which hook a script belongs to:
 
 1. **Metadata Comment:** Add a special comment to your script to specify the target hook(s). You can specify multiple hooks by separating them with commas.
 
-    ```bash
-    # githooks-stage: pre-commit, post-merge
-    ```
+   ```bash
+   # githooks-stage: pre-commit, post-merge
+   ```
 
 2. **Directory Structure:** Place your script in a directory named after the hook. For example, a script placed in `hooks/pre-commit/` will be automatically associated with the `pre-commit` hook.
 
@@ -304,25 +351,25 @@ The installer will emit the Git commands it runs, and you can combine these subc
 
 The `install.sh` script provides several commands to customize its behavior:
 
-| Command | Description |
-|---|---|
-| `install` | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, and `--force`. |
-| `stage add SOURCE` | Copy hook parts from a source directory. Supports `--hook` (alias: `--for-hook`), `--name` (globs, extension optional), `--force`, and `--dry-run`. |
-| `stage unstage SOURCE` | Remove staged hook parts that match a source directory. Supports `--hook`, `--name`, and `--dry-run`. |
-| `stage remove HOOK [--name PART \| --all]` | Remove one part by name (extension optional) or purge all parts for a hook. |
-| `stage list [HOOK]` | Show staged parts for all hooks or a specific hook. |
-| `hooks list [HOOK]` | Summarize installed stubs and staged parts. |
-| `config show` / `config set hooks-path PATH` | Inspect or update toolkit configuration. |
-| `help [COMMAND [SUBCOMMAND]]` | Display MAN-style manuals for commands and subcommands. |
-| `uninstall` | Remove runner artifacts and managed stubs while leaving checked-in toolkit files intact. |
+| Command                                      | Description                                                                                                                                                               |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `install`                                    | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, `--force`, and `--mode ephemeral` (installs the runner under `.git/.githooks/`; see below). |
+| `stage add SOURCE`                           | Copy hook parts from a source directory. Supports `--hook` (alias: `--for-hook`), `--name` (globs, extension optional), `--force`, and `--dry-run`.                       |
+| `stage unstage SOURCE`                       | Remove staged hook parts that match a source directory. Supports `--hook`, `--name`, and `--dry-run`.                                                                     |
+| `stage remove HOOK [--name PART \| --all]`   | Remove one part by name (extension optional) or purge all parts for a hook.                                                                                               |
+| `stage list [HOOK]`                          | Show staged parts for all hooks or a specific hook.                                                                                                                       |
+| `hooks list [HOOK]`                          | Summarize installed stubs and staged parts.                                                                                                                               |
+| `config show` / `config set hooks-path PATH` | Inspect or update toolkit configuration.                                                                                                                                  |
+| `help [COMMAND [SUBCOMMAND]]`                | Display MAN-style manuals for commands and subcommands.                                                                                                                   |
+| `uninstall`                                  | Remove runner artifacts and managed stubs while leaving checked-in toolkit files intact.                                                                                  |
 
 **Global Flags:**
 
-| Flag | Description |
-|---|---|
-| `-n`, `--dry-run` | Print planned actions without touching the filesystem. |
-| `-h`, `--help` | Show the global help message. You can also target subcommands (e.g. `--help stage`). |
-| `-V`, `--version` | Print the toolkit version. |
+| Flag              | Description                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `-n`, `--dry-run` | Print planned actions without touching the filesystem.                               |
+| `-h`, `--help`    | Show the global help message. You can also target subcommands (e.g. `--help stage`). |
+| `-V`, `--version` | Print the toolkit version.                                                           |
 
 ### Provided Examples
 
@@ -337,3 +384,53 @@ companion guide under `docs/examples/`. Stage them with:
 - **`watch-configured-actions.sh`** ([guide](docs/examples/watch-configured-actions.md)): Run custom commands when specific files change, based on a YAML or JSON configuration file.
 - **`metadata-apply.sh`** ([guide](docs/examples/metadata-apply.md)): Restores file permissions and other metadata using `metastore`.
 - **`git-crypt-enforce.sh`** ([guide](docs/examples/git-crypt-enforce.md)): Ensures that files that should be encrypted with `git-crypt` are not committed in plaintext.
+
+---
+
+## Ephemeral Mode (overview)
+
+**Ephemeral Mode** installs the runner and stubs under **`.git/.githooks/`**, so you can enable hooks without committing toolkit files. You may still keep your **hook parts** versioned in `.githooks/` and choose how ephemeral parts and versioned parts are layered via an **overlay mode**:
+
+- `ephemeral-first` *(default)* — run ephemeral parts before any versioned parts
+- `versioned-first` — run versioned parts before any ephemeral parts
+- `merge` — keep both roots active without changing their default ordering
+
+```mermaid
+graph TD
+  classDef ephemeral fill:#eef6ff,stroke:#6aa0ff,stroke-width:1px
+  classDef versioned fill:#fff7e6,stroke:#ffb21e,stroke-width:1px
+  classDef runner fill:#eef,stroke:#88f,stroke-width:1px
+
+  subgraph roots ["Hook Roots:"]
+    direction TB
+    E[".git/.githooks (ephemeral)"]:::ephemeral
+    V[".githooks (versioned)"]:::versioned
+  end
+
+  H["Hook: 'pre-commit'"] -->|"dispatch"| R(("Runner"))
+  R:::runner -->|"ephemeral-first"| E
+  R:::runner -->|"versioned-first"| V
+  R:::runner -->|"merge"| E
+  R:::runner -->|"merge"| V
+
+  E -->|"lexical order"| EP[".git/.githooks/pre-commit.d/*"]:::ephemeral
+  V -->|"lexical order"| VP[".githooks/pre-commit.d/*"]:::versioned
+```
+
+**Quick commands:**
+
+```bash
+# Install Ephemeral Mode from a vendored copy
+.githooks/install.sh install --mode ephemeral --hooks pre-commit,post-merge --overlay ephemeral-first
+
+# OR install from a shared checkout without vendoring:
+"$HOME/.cache/git-hooks-runner-toolkit/install.sh" install --mode ephemeral --hooks pre-commit
+
+# Inspect current paths and precedence:
+.githooks/install.sh config show
+
+# Uninstall Ephemeral Mode and restore previous hooksPath:
+.githooks/install.sh uninstall --mode ephemeral
+```
+
+For a deeper walk‑through, see the dedicated [Ephemeral Mode guide](docs/ephemeral-mode.md).

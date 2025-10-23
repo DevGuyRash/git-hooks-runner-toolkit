@@ -2,139 +2,169 @@
 
 ## Overview
 
-Ephemeral Mode installs the Git Hooks Runner Toolkit inside `.git/.githooks/`
-so you can enable hook automation without committing toolkit files. The
-installation persists across `git pull`, `git reset --hard`, and other Git
-operations that rewrite the worktree, making it ideal for vendor-managed or
-third-party repositories.
+**Ephemeral Mode** installs the Git Hooks Runner Toolkit under **`.git/.githooks/`** so you can enable hook automation **without committing toolkit files**. It persists across `git pull`, `git reset --hard`, and other worktree rewrites, and it can **overlay** (combine) with a tracked `.githooks/` directory when you want local parts and versioned parts to run together.
 
-The lifecycle captures the previous `core.hooksPath`, records managed hooks,
-and keeps runner assets local to the repository. You can refresh the
-installation at any time by re-running the installer and toggle precedence when
-combining local automation with a tracked `.githooks/` directory.
+- Runner & stubs live in: **`.git/.githooks/`**
+- Your **hook parts** can remain versioned in: **`.githooks/`** *(recommended)*  
+- You control which root runs first via **overlay precedence**  
+  (`ephemeral-first` *(default)*, `versioned-first`, or `merge`)
+
+```mermaid
+graph TD
+  classDef ephemeral fill:#eef6ff,stroke:#6aa0ff,stroke-width:1px
+  classDef versioned fill:#fff7e6,stroke:#ffb21e,stroke-width:1px
+  classDef runner fill:#eef,stroke:#88f,stroke-width:1px
+  classDef note fill:#f5f5f5,stroke:#ccc,stroke-width:1px
+
+  subgraph roots ["Hook Roots:"]
+    direction TB
+    E[".git/.githooks (ephemeral)"]:::ephemeral
+    V[".githooks (versioned)"]:::versioned
+  end
+
+  R(("Runner")):::runner -->|"overlay: 'ephemeral-first'"| E
+  R(("Runner")):::runner -->|"overlay: 'versioned-first'"| V
+  R(("Runner")):::runner -->|"overlay: 'merge'"| E
+  R(("Runner")):::runner -->|"overlay: 'merge'"| V
+  N["&quot;Parts from both roots run in lexical order within each root&quot;"]:::note
+```
+
+## When to Use It
+
+- You **cannot** or **prefer not** to commit tooling to the repository.
+- You want to **layer local automation** on top of versioned hooks.
+- You need a **reversible** install that **restores** `core.hooksPath` on uninstall.
 
 ## Prerequisites
 
-- A writable Git repository (worktree or bare) where you want the hooks to run
-- A POSIX-compliant shell (`/bin/sh`) and the Git CLI available on `PATH`
-- A local copy of the toolkit (vendored into the repository or a separate
-  checkout referenced via `install.sh`)
+- A writable Git repository (worktree or bare).
+- `/bin/sh` (POSIX shell) and the Git CLI on `PATH`.
+- A copy of this toolkit either **vendored** in the repo or **checked out elsewhere**.
 
-## Installation
+## Quick Start
 
-Clone or update the toolkit on your machine if you have not done so already:
+### A) From a vendored copy (`.githooks/`)
 
-```sh
+```bash
+# Inside the target repository:
+.githooks/install.sh install \
+  --mode ephemeral \
+  --hooks pre-commit,post-merge \
+  --overlay ephemeral-first   # or: versioned-first, merge
+
+# Inspect the active configuration:
+.githooks/install.sh config show
+```
+
+### B) Without vendoring (shared checkout)
+
+```bash
+# Fetch (or update) a shared toolkit checkout once:
 git clone https://github.com/DevGuyRash/git-hooks-runner-toolkit.git \
   "$HOME/.cache/git-hooks-runner-toolkit"
-```
 
-Inside the repository that should receive hooks, run the installer in Ephemeral
-Mode. The current working directory determines which Git repository is updated,
-so you can execute the script from a shared toolkit checkout:
-
-```sh
+# Install into any repository by changing CWD:
 cd /path/to/target-repo
-"$HOME/.cache/git-hooks-runner-toolkit/install.sh" install --mode ephemeral \
-  --hooks pre-commit,post-merge
+"$HOME/.cache/git-hooks-runner-toolkit/install.sh" install \
+  --mode ephemeral \
+  --hooks pre-commit,post-merge \
+  --overlay versioned-first
 ```
 
-Invoke `install.sh install --mode ephemeral --help` for a full overview of
-available flags, precedence controls, and usage notes directly from the CLI.
+## Overlay Precedence
 
-Confirm the active configuration after installation:
+Choose how ephemeral and versioned parts are layered:
 
-```sh
-"$HOME/.cache/git-hooks-runner-toolkit/install.sh" config show
+- `ephemeral-first` *(default)* — local ephemeral parts run before versioned parts.
+- `versioned-first` — versioned parts run before ephemeral parts.
+- `merge` — both roots stay active in their **native** ordering; runner records the relationship.
+
+You can set the mode via:
+
+- CLI flag: `--overlay <mode>`
+- Environment: `GITHOOKS_EPHEMERAL_PRECEDENCE=<mode>`
+- Git config (persisted): `git config --local githooks.ephemeral.precedence <mode>`
+
+## Lifecycle & Manifest
+
+On install, the toolkit captures and restores state **idempotently**:
+
+```mermaid
+graph TD
+  classDef step fill:#eef6ff,stroke:#6aa0ff,stroke-width:1px
+  classDef manifest fill:#fff7e6,stroke:#ffb21e,stroke-width:1px
+
+  S1["run: install.sh install --mode ephemeral"]:::step --> S2["create .git/.githooks/ (runner, stubs)"]:::step
+  S2 --> S3["record manifest: .git/.githooks/manifest.sh"]:::manifest
+  S3 --> S4["save prior core.hooksPath & selected hooks, precedence"]:::manifest
+  S4 --> S5["hooks run via runner with chosen overlay"]:::step
+
+  U1["run: install.sh uninstall --mode ephemeral"]:::step --> U2["restore previous core.hooksPath from manifest"]:::manifest
+  U2 ---x U3["remove .git/.githooks/"]:::step
 ```
 
-The summary lists the hooks path, precedence ordering, and any manifest
-metadata captured during the run, making it easier to spot mismatches before
-sharing the repository with other contributors.
+**Commands you’ll use most:**
 
-Key flags to remember:
+```bash
+# Install (ephemeral):
+install.sh install --mode ephemeral --hooks pre-commit --overlay ephemeral-first
 
-- `--hooks` selects the Git hooks to manage. The installer reuses any manifest
-  entries from previous installs when the flag is omitted.
-- `--overlay` controls precedence when both ephemeral and versioned hook roots
-  exist (see below).
-- `--dry-run` previews the install without touching the filesystem.
+# Inspect:
+install.sh config show
 
-After a successful run, the CLI prints the active hooks path and precedence
-mode. Hooks live under `.git/.githooks/` and survive repository syncs.
+# Uninstall (restore previous hooksPath and remove ephemeral assets):
+install.sh uninstall --mode ephemeral
 
-## Precedence and Overlay Control
-
-Ephemeral Mode defaults to `ephemeral-first` precedence so local parts run
-before tracked hooks. Adjust the ordering when you need different behavior:
-
-- `--overlay ephemeral-first` — run ephemeral parts before any versioned hooks
-- `--overlay versioned-first` — prioritize staged hooks from `.githooks/` before
-  ephemeral parts
-- `--overlay merge` — keep both root sets active without changing their default
-  ordering while still recording the relationship in the manifest
-
-You can set the preference on the CLI, via the `GITHOOKS_EPHEMERAL_PRECEDENCE`
-environment variable, or with `git config --local githooks.ephemeral.precedence`
-to persist the choice.
-
-After installation, run the same `install.sh` path with `config show` to inspect
-the active hooks path and resolved overlay ordering:
-
-```sh
-"$HOME/.cache/git-hooks-runner-toolkit/install.sh" config show
+# Dry-run any install/uninstall:
+install.sh install  --mode ephemeral --dry-run
+install.sh uninstall --mode ephemeral --dry-run
 ```
 
 ## Compatibility Notes
 
-- The installer never writes to tracked files; all runner assets stay under
-  `.git/.githooks/` with restrictive permissions.
-- Existing `.githooks/` directories remain untouched and continue to work via
-  overlay precedence controls.
-- Prior `core.hooksPath` values are captured in the manifest so uninstall can
-  restore repository configuration exactly.
-- Re-running `install.sh install --mode ephemeral` refreshes stubs and manifest
-  contents idempotently, making it safe to update hooks after toolkit upgrades.
-- Bare repositories and linked worktrees are supported—the installer resolves
-  `.git/` indirection and provisions the ephemeral directory inside the shared
-  Git metadata area.
-- CLI help and diagnostics avoid leaking implementation details but surface the
-  information needed to confirm precedence, manifest location, and uninstall
-  commands.
+- Works with **bare repos** and **linked worktrees**; the installer resolves `.git/` indirection correctly.
+- Does **not** modify tracked files; all assets live under `.git/.githooks/` with restrictive permissions.
+- Existing `.githooks/` directories remain untouched and are combined according to your **overlay** setting.
+- Re-running the ephemeral install is **safe**; stubs and manifest are refreshed idempotently.
 
 ## Uninstall
 
-To remove the ephemeral installation and restore the previous configuration:
+```bash
+# Inside the target repository:
+install.sh uninstall --mode ephemeral
 
-```sh
-cd /path/to/target-repo
-"$HOME/.cache/git-hooks-runner-toolkit/install.sh" uninstall --mode ephemeral
+# Optional: dry-run first
+install.sh uninstall --mode ephemeral --dry-run
 ```
 
-The command deletes `.git/.githooks/`, restores the saved `core.hooksPath`, and
-cleans up the manifest. Combine with `--dry-run` to preview the removal.
-
-Dry-run the uninstall when you want to confirm which files would be affected:
-
-```sh
-"$HOME/.cache/git-hooks-runner-toolkit/install.sh" uninstall --mode ephemeral --dry-run
-```
-
-After cleanup, invoke `install.sh config show` with the same path to ensure the
-previous hooks path is back in place and precedence matches expectations.
+The uninstall removes `.git/.githooks/`, restores the previous `core.hooksPath`, and deletes the manifest.
 
 ## Troubleshooting
 
-- Run `path/to/install.sh config show` (using the same path you invoke for
-  install) to confirm the active hooks path when diagnosing precedence issues.
-- Inspect `.git/.githooks/manifest.sh` to verify recorded hooks, precedence, and
-  the prior `core.hooksPath` value if uninstall behaves unexpectedly.
-- If another tool modifies `core.hooksPath`, rerun the installer with
-  `--mode ephemeral` to refresh stubs and restore ephemeral precedence.
-- Use the uninstall dry-run to identify stray files before removal, then rerun
-  with `--mode ephemeral` when the output matches expectations.
-- After uninstall completes, run the `config show` command again to validate the
-  restored hooks path before re-enabling tracking tooling.
-- Use `install.sh install --mode ephemeral --help` or
-  `install.sh uninstall --mode ephemeral --help` for context-specific guidance
-  when resolving CLI errors or reviewing the supported flag set.
+- **Which hooks path is active?**
+  Run:
+
+  ```bash
+  install.sh config show
+  ```
+
+  It prints `core.hooksPath`, the resolved shared runner path, and derived directories.
+
+- **Overlay confusion?**
+  Re-run install with an explicit overlay:
+
+  ```bash
+  install.sh install --mode ephemeral --overlay versioned-first
+  ```
+
+- **Uninstall didn’t restore my previous hooks?**
+  Check the manifest:
+
+  ```bash
+  .git/.githooks/manifest.sh
+  ```
+
+  and re-run uninstall. If another tool changed `core.hooksPath`, simply re-run the ephemeral install to refresh stubs and precedence, then uninstall again.
+
+- **Bare repo behavior?**
+  Supported. The ephemeral directory is provisioned inside the shared Git metadata area, and stubs are created accordingly.
