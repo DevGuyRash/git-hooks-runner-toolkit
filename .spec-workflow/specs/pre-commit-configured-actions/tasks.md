@@ -1,4 +1,4 @@
-- [ ] 1. Extract shared watcher library
+- [x] 1. Extract shared watcher library
   - Files: lib/watch-configured-actions.sh (new), examples/watch-configured-actions.sh
   - Move rule parsing, pattern matching, command execution, and mark-file logic into a reusable POSIX `sh` helper while adapting the existing post-event example to call the library.
   - Purpose: Prevent duplication between post-event and pre-commit hooks and enable centralized config lookup.
