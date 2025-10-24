@@ -30,7 +30,7 @@
   - _Requirements: 1, 2, 3, 4_
   - _Prompt: Role: QA Engineer experienced with shell-based integration tests | Task: Extend example tests to cover new pre-commit hook and centralized config staging, fulfilling requirements 1, 2, 3, and 4 | Restrictions: Keep tests POSIX-compliant, reuse sandbox helpers, ensure deterministic assertions for config paths | _Leverage: tests/examples/common.sh, existing watch_configured_actions tests_ | _Requirements: 1, 2, 3, 4 | Success: New tests pass and fail appropriately when behaviour regresses, and existing suites remain green_
 
-- [ ] 5. Document centralized config usage
+- [x] 5. Document centralized config usage
   - Files: docs/examples/watch-configured-actions.md, README.md
   - Update documentation to explain shared `.githooks/config/watch-configured-actions.yml`, mention migration notices, and highlight pre-commit availability.
   - Purpose: Communicate new configuration conventions per requirements.
