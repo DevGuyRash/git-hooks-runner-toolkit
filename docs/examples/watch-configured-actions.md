@@ -4,7 +4,9 @@
 
 `watch-configured-actions.sh` is a `post-merge` helper that inspects files
 changed by a merge/rewrite/checkout/commit and runs custom commands described in
-a YAML or JSON configuration file.
+a YAML or JSON configuration file. A companion,
+`watch-configured-actions-pre-commit.sh`, enforces the same rules against staged
+changes before the commit is created.
 
 ## Stage It
 
@@ -12,21 +14,40 @@ a YAML or JSON configuration file.
 .githooks/install.sh stage add examples --name 'watch-configured-actions'
 ```
 
-The script advertises the `post-merge` hook via metadata. You can also copy it
-to other hooks if needed; it reads the current hook name from
+Stage the pre-commit variant when you want feedback before a commit:
+
+```bash
+.githooks/install.sh stage add examples --hook pre-commit --name 'watch-configured-actions-pre-commit'
+```
+
+Either command also copies the shared configuration asset into the hooks-root
+`config/` directory (e.g. `.githooks/config/watch-configured-actions.yml` for
+persistent installs or `.git/.githooks/config/watch-configured-actions.yml` for
+ephemeral mode).
+
+The scripts advertise their primary hook via metadata. You can copy them to
+other hooks if needed; each reads the current hook name from
 `$GITHOOKS_HOOK_NAME`.
 
 ## Provide a Configuration File
 
-On each run the script searches for, in order:
+On each run the hooks search for configuration in the following order:
 
-1. `GITHOOKS_WATCH_CONFIG` (environment variable)
-2. `.githooks/watch-config.yml`
-3. `.githooks/watch-config.yaml`
-4. `.githooks/watch-config.json`
+1. `GITHOOKS_WATCH_CONFIG` (environment variable; accepts absolute or
+   repository-relative paths).
+2. The centralized hooks-root config directory:
+   - Persistent installs copy to `.githooks/config/watch-configured-actions.yml`.
+   - Ephemeral installs copy to `.git/.githooks/config/watch-configured-actions.yml`.
+   - Alternate filenames `watch-configured-actions.yaml` and
+     `watch-configured-actions.json` are detected automatically.
+3. Legacy repository paths under `.githooks/` (for example,
+   `.githooks/watch-configured-actions.yml`). Selecting these continues to work
+   but emits a warning encouraging migration to the `config/` directory.
+4. Inline definitions supplied through `WATCH_INLINE_RULES` or
+   `WATCH_INLINE_RULES_DEFAULT`.
 
-If no file is found and no inline rules are supplied, it reports
-"no rules configured" and exits successfully.
+If no file is found and no inline rules are supplied, the hooks report "no rules
+configured" and exit successfully.
 
 ### YAML Schema
 
@@ -94,6 +115,17 @@ continue_on_error=true
 - `GITHOOKS_WATCH_MARK_FILE=path` — records the hook name, triggers, and changed
   paths to `path` (relative paths live under the repo root).
 - `GITHOOKS_WATCH_PRESERVE_TMP=1` — retain temporary files for inspection.
+
+## Runtime Hints and Warnings
+
+- Missing config files trigger an info-level hint pointing at the centralized
+  `config/` location and the hook exits 0 so you can wire in the sample YAML.
+- Using legacy `.githooks/watch-config*.{yml,yaml,json}` paths logs a warning
+  recommending migration while still loading the rules.
+- YAML/JSON parse failures raise an error naming the offending file and direct
+  you back to this guide.
+- Permission or sandbox errors when reading config bubble up with the failing
+  path and suggest confirming whether the install is persistent or ephemeral.
 
 ## Requirements
 

@@ -381,9 +381,16 @@ companion guide under `docs/examples/`. Stage them with:
 ```
 
 - **`dependency-sync.sh`** ([guide](docs/examples/dependency-sync.md)): Watches common manifests across Node, Python (pip/Poetry/Pipenv/uv/PDM), Ruby, PHP (Composer), Go, Rust, Elixir, .NET, Java (Maven/Gradle), Swift, Dart/Flutter, Bun, and CocoaPods and runs the matching install/sync command when those files change.
-- **`watch-configured-actions.sh`** ([guide](docs/examples/watch-configured-actions.md)): Run custom commands when specific files change, based on a YAML or JSON configuration file.
+- **`watch-configured-actions.sh`** / **`watch-configured-actions-pre-commit.sh`** ([guide](docs/examples/watch-configured-actions.md)): Run custom commands when specific files change after merges or before commits, all driven by a shared YAML/JSON config.
 - **`metadata-apply.sh`** ([guide](docs/examples/metadata-apply.md)): Restores file permissions and other metadata using `metastore`.
 - **`git-crypt-enforce.sh`** ([guide](docs/examples/git-crypt-enforce.md)): Ensures that files that should be encrypted with `git-crypt` are not committed in plaintext.
+
+> **Note:** Staging either watch-configured-actions script also installs
+> `config/watch-configured-actions.yml` under your hooks root (`.githooks/config/`
+> for persistent installs, `.git/.githooks/config/` for ephemeral mode). If the
+> centralized file is missing the hook logs a hint and exits cleanly; using a
+> legacy `.githooks/watch-config*.yml` keeps working but emits a migration
+> warning.
 
 ---
 
