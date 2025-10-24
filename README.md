@@ -387,10 +387,11 @@ companion guide under `docs/examples/`. Stage them with:
 
 > **Note:** Staging either watch-configured-actions script also installs
 > `config/watch-configured-actions.yml` under your hooks root (`.githooks/config/`
-> for persistent installs, `.git/.githooks/config/` for ephemeral mode). If the
-> centralized file is missing the hook logs a hint and exits cleanly; using a
-> legacy `.githooks/watch-config*.yml` keeps working but emits a migration
-> warning.
+> for persistent installs, `.git/.githooks/config/` for ephemeral mode) so both
+> the post-event and pre-commit variants share one source of truth. If staging
+> detects a legacy `.githooks/watch-config*.yml` file it prints a migration
+> warning; runtime loads still succeed but also emit a warning until you move to
+> the centralized location, and missing configs trigger a hint before exiting 0.
 
 ---
 

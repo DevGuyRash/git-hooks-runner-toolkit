@@ -23,7 +23,9 @@ Stage the pre-commit variant when you want feedback before a commit:
 Either command also copies the shared configuration asset into the hooks-root
 `config/` directory (e.g. `.githooks/config/watch-configured-actions.yml` for
 persistent installs or `.git/.githooks/config/watch-configured-actions.yml` for
-ephemeral mode).
+ephemeral mode) so both hooks read the same centralized rules. If staging spots
+a legacy `.githooks/watch-config*.{yml,yaml,json}` file it emits a migration
+warning before continuing with the copy.
 
 The scripts advertise their primary hook via metadata. You can copy them to
 other hooks if needed; each reads the current hook name from
@@ -35,7 +37,7 @@ On each run the hooks search for configuration in the following order:
 
 1. `GITHOOKS_WATCH_CONFIG` (environment variable; accepts absolute or
    repository-relative paths).
-2. The centralized hooks-root config directory:
+2. The centralized hooks-root config directory staged above:
    - Persistent installs copy to `.githooks/config/watch-configured-actions.yml`.
    - Ephemeral installs copy to `.git/.githooks/config/watch-configured-actions.yml`.
    - Alternate filenames `watch-configured-actions.yaml` and
