@@ -15,7 +15,7 @@
   - _Prompt: Implement the task for spec testing-audit, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Bats Integration Specialist | Task: Create tests/audit/lifecycle.bats and extend tests/ephemeral/lifecycle.bats to read matrix NDJSON, assert hooks-path restoration, overlay precedence, and log completeness across install/uninstall permutations covering requirements 1.1 and 1.3 | Restrictions: Keep tests deterministic, reuse existing assertion helpers, ensure failures emit actionable diagnostics | _Leverage: tests/helpers/assertions.sh, lib/ephemeral_overlay.sh | _Requirements: 1.1, 1.3 | Success: Bats suite fails on truncated overlay logs or manifest mismatches, passes on current baseline after fixes, integrates with matrix artifacts_
   - _Approvals Needed: Requirements/design/task updates in this spec require dashboard approval once reviewed._
 
-- [ ] 3. Capture help surface snapshots and coverage checks
+- [x] 3. Capture help surface snapshots and coverage checks
   - Files: tests/audit/cli_help.bats; tests/audit/lib/help_snapshot.sh; tests/audit/output/help/*.txt
   - Snapshot `help` and `--help` output for all commands and subcommands, storing checksums and identifying missing automation.
   - _Leverage: install.sh usage printers; tests/helpers/git_repo.sh_
