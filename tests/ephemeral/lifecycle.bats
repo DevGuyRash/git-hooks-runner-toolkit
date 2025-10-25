@@ -2,6 +2,23 @@
 
 load '../helpers/git_repo.sh'
 load '../helpers/assertions.sh'
+load '../audit/lib/lifecycle_matrix.sh'
+
+setup_file() {
+  local base_tmp
+  base_tmp="${BATS_FILE_TMPDIR:-${TMPDIR:-/tmp}}"
+  AUDIT_MATRIX_TMPDIR=$(mktemp -d "${base_tmp%/}/ephemeral-matrix.XXXXXX") || bats_die 'unable to create lifecycle audit matrix temp directory'
+  AUDIT_MATRIX_FILE="${AUDIT_MATRIX_TMPDIR}/cli-matrix.ndjson"
+  export AUDIT_MATRIX_FILE
+  lifecycle_matrix_use "${AUDIT_MATRIX_FILE}"
+}
+
+teardown_file() {
+  if [ -n "${AUDIT_MATRIX_TMPDIR:-}" ] && [ -d "${AUDIT_MATRIX_TMPDIR}" ]; then
+    rm -rf "${AUDIT_MATRIX_TMPDIR}"
+  fi
+  unset AUDIT_MATRIX_TMPDIR AUDIT_MATRIX_FILE
+}
 
 setup() {
   if ! git_repo_setup; then
@@ -40,6 +57,9 @@ teardown() {
   if [ "${previous}" != '.git/.githooks' ]; then
     bats_die "expected previous hooks path to remain .git/.githooks, got ${previous}"
   fi
+
+  assert_hooks_path_restored install-ephemeral '.git/.githooks'
+  assert_overlay_precedence install-ephemeral 'ephemeral-first'
 }
 
 @test 'ephemeral assets persist across git reset --hard' {
@@ -73,6 +93,9 @@ teardown() {
   if [ "${managed_after_reset}" != 'pre-commit' ]; then
     bats_die "expected managed hooks to persist, got ${managed_after_reset:-<unset>}"
   fi
+
+  assert_hooks_path_restored install-ephemeral '.git/.githooks'
+  assert_overlay_precedence install-ephemeral 'ephemeral-first'
 }
 
 @test 'uninstall restores prior hooksPath and cleans ephemeral root' {
@@ -100,5 +123,7 @@ teardown() {
   if [ -d "${GIT_REPO_WORK}/.git/.githooks" ]; then
     bats_die 'expected ephemeral root directory to be removed after uninstall'
   fi
+
+  assert_hooks_path_restored uninstall-ephemeral '<unset>'
 }
 

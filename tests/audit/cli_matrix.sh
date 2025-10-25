@@ -172,14 +172,36 @@ matrix_capture_manifest_value() {
 }
 
 matrix_capture_overlay_roots() {
-  _matrix_roots=$(matrix_capture_manifest_value ROOTS || true)
+  if [ -z "${GIT_REPO_WORK:-}" ]; then
+    printf '%s' ''
+    return 0
+  fi
+  _matrix_precedence=$(matrix_capture_manifest_value PRECEDENCE_MODE || true)
+  _matrix_roots=$(git_repo_exec PROJECT_ROOT="${PROJECT_ROOT}" GITHOOKS_EPHEMERAL_PRECEDENCE="${_matrix_precedence}" sh -c '
+    set -eu
+    project="${PROJECT_ROOT:-}"
+    if [ -z "${project}" ]; then
+      exit 0
+    fi
+    common_lib="${project}/lib/common.sh"
+    lifecycle_lib="${project}/lib/ephemeral_lifecycle.sh"
+    overlay_lib="${project}/lib/ephemeral_overlay.sh"
+    if [ ! -f "${common_lib}" ] || [ ! -f "${lifecycle_lib}" ] || [ ! -f "${overlay_lib}" ]; then
+      exit 0
+    fi
+    # shellcheck disable=SC1090
+    . "${common_lib}"
+    # shellcheck disable=SC1090
+    . "${lifecycle_lib}"
+    # shellcheck disable=SC1090
+    . "${overlay_lib}"
+    ephemeral_overlay_resolve_roots
+  ' 2>/dev/null || true)
   if [ -z "${_matrix_roots}" ]; then
     printf '%s' ''
     return 0
   fi
-  # Manifest stores colon-separated list; ensure each entry is newline-separated
-  # after stripping stray newline characters.
-  printf '%s' "${_matrix_roots}" | tr '\n' ':' | tr ':' '\n'
+  printf '%s' "${_matrix_roots}"
 }
 
 matrix_capture_precedence() {

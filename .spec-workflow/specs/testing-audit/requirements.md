@@ -19,6 +19,8 @@ Supports the toolkit goal of providing dependable, policy-friendly Git hook auto
 1. WHEN `install.sh install` is executed in both `standard` and `ephemeral` modes across vendored and shared-checkout contexts THEN the audit SHALL record hooks-path, overlay roots, file placements, and any mismatches (including truncated log output) with reproduction commands for every flag (`--hooks`, `--all-hooks`, `--overlay`, `--force`, `--dry-run`).
 2. IF Ephemeral Mode overlay resolution is invoked with each precedence (`ephemeral-first`, `versioned-first`, `merge`) THEN the audit SHALL capture the logged order alongside filesystem assertions for each root, and contrast behaviour with the standard mode equivalents.
 3. WHEN uninstall and reinstall cycles are exercised with custom `core.hooksPath` values set beforehand AND with additional flag permutations (`--dry-run`, `--mode` variations) THEN the audit SHALL document whether manifest restoration, log output, and exit codes stay consistent across runs.
+4. WHEN lifecycle tests consume matrix NDJSON records for each install/uninstall permutation THEN they SHALL assert hooks-path restoration after installs and uninstalls, verify overlay root ordering matches configured precedence, and confirm manifest placement under both `.githooks/` and `.git/.githooks/` as applicable.
+5. IF any matrix record indicates truncated or missing overlay log entries THEN the lifecycle suite SHALL fail with actionable diagnostics including the case identifier, offending log snippet, and expected path prefix so regressions surface immediately.
 
 ### Requirement 2 — CLI subcommand, flag, and help surface inventory
 
@@ -39,6 +41,7 @@ Supports the toolkit goal of providing dependable, policy-friendly Git hook auto
 1. WHEN auditing existing Bats and shell test helpers THEN the audit SHALL list brittleness points (environment dependencies, flaky setup, insufficient assertions) and proposed mitigations.
 2. IF additional logging or fixtures are required to capture overlay state, manifest contents, or CLI output THEN the audit SHALL describe these needs with concrete locations in the repo.
 3. WHEN summarising findings THEN the document SHALL recommend specific follow-up fixes or new tests to be scheduled as implementation tasks in the subsequent phase.
+4. WHEN lifecycle assertions detect hooks-path, overlay, or log coverage gaps THEN NDJSON `notes` SHALL capture the failure context alongside a recommended helper enhancement to close the observability gap. _(Approved)_
 
 ## Non-Functional Requirements
 

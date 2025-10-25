@@ -56,11 +56,18 @@ graph TD
 - **Dependencies:** `tests/helpers/git_repo.sh`, core CLI binaries, `jq` (optional—fallback to pure shell JSON writer if unavailable).
 - **Reuses:** Git sandbox helpers for repo setup and teardown.
 
-### Component 2 — Lifecycle Verifier (`tests/audit/lifecycle.bats`)
+### Component 2 — Lifecycle Verifier (`tests/audit/lifecycle.bats`) _(Approved)_
 - **Purpose:** Assert behaviours around install/uninstall cycles, manifest persistence, overlay ordering, and log completeness.
-- **Interfaces:** Bats tests invoking `matrix_case_assert <case-id> <expectations>`.
-- **Dependencies:** CLI Matrix Runner outputs, `lib/ephemeral_overlay.sh` for expected overlay roots.
-- **Reuses:** Existing ephemeral lifecycle assertions extended with new checks for truncated paths.
+- **Interfaces:** `load_matrix_records <path>` to stream NDJSON, `expect_lifecycle_case <case-id> <hooks-path> <overlay-mode>` for deterministic assertions, and `record_lifecycle_failure <case-id> <note>` to emit actionable diagnostics.
+- **Dependencies:** CLI Matrix Runner outputs, `lib/ephemeral_overlay.sh` for expected overlay roots, `tests/helpers/assertions.sh` for coloured diff output.
+- **Reuses:** Existing ephemeral lifecycle assertions extended with NDJSON-backed expectations and truncated-log detection.
+- **Outputs:** Emits structured failure logs that include matrix case IDs, observed versus expected overlay ordering, and hooks-path lineage.
+
+### Component 2a — Ephemeral Lifecycle Extension (`tests/ephemeral/lifecycle.bats`)
+- **Purpose:** Tie legacy ephemeral tests to the audit matrix so parity remains between the audit suite and existing regression harness.
+- **Interfaces:** Sources shared lifecycle helpers (`tests/audit/lib/lifecycle_matrix.sh`) and calls `assert_overlay_precedence` and `assert_hooks_path_restored` with live sandbox state.
+- **Dependencies:** Matrix NDJSON output from Component 1 alongside `lib/ephemeral_overlay.sh`.
+- **Reuses:** Existing setup/teardown flows to minimise churn while tightening assertions.
 
 ### Component 3 — Help Surface Collector (`tests/audit/cli_help.bats` + `tests/audit/lib/help_snapshot.sh`)
 - **Purpose:** Snapshot `help` and `--help` output for every command/subcommand pair, reporting mismatches or missing coverage.
@@ -123,7 +130,7 @@ graph TD
 - Introduce checksum verification tests that ensure overlay root logging never truncates path prefixes.
 
 ### Integration Testing
-- Extend `tests/ephemeral/lifecycle.bats` with new cases verifying overlay logs, standard mode parity, and manifest restoration under permutations produced by the matrix runner.
+- Extend `tests/ephemeral/lifecycle.bats` with new cases verifying overlay logs, standard mode parity, and manifest restoration under permutations produced by the matrix runner. Source the shared lifecycle helper library to avoid duplicating NDJSON parsing logic.
 - Add dedicated Bats suites for `stage`, `hooks`, and `config` commands to consume matrix outputs and assert flag/help coverage.
 
 ### End-to-End Testing
