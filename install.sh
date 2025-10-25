@@ -2549,9 +2549,13 @@ cmd_config() {
       ;;
     set)
       shift
-      if [ "$#" -gt 0 ] && [ "$1" = "help" ]; then
-        print_config_set_usage
-        return 0
+      if [ "$#" -gt 0 ]; then
+        case "$1" in
+          help|-h|--help)
+            print_config_set_usage
+            return 0
+            ;;
+        esac
       fi
       if [ "$#" -lt 2 ]; then
         githooks_die "config set requires key and value"
