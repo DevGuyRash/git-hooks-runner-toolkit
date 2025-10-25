@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/testing-audit/tasks.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-25T15:19:05.414Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761405545411_9axs3mwvz",
+      "approvalTitle": "Approve testing-audit tasks"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-25T15:20:52.141Z",
+      "trigger": "approved",
+      "approvalId": "approval_1761405545411_9axs3mwvz",
+      "approvalTitle": "Approve testing-audit tasks"
+    }
+  ]
+}

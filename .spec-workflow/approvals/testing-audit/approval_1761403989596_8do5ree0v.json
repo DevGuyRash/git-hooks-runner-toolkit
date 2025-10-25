@@ -1,0 +1,21 @@
+{
+  "id": "approval_1761403989596_8do5ree0v",
+  "title": "Approve testing-audit requirements",
+  "filePath": ".spec-workflow/specs/testing-audit/requirements.md",
+  "type": "document",
+  "status": "needs-revision",
+  "createdAt": "2025-10-25T14:53:09.596Z",
+  "category": "spec",
+  "categoryName": "testing-audit",
+  "response": "Feedback Summary (1 comments):\n\nGeneral Comments:\n1. I want requirements to cover all flags, not just ephemeral mode. Also all subcommands. Also want a `--help` for all commands and subcommands alongside the `help` subcommands\n\n",
+  "annotations": "{\n  \"decision\": \"needs-revision\",\n  \"comments\": [\n    {\n      \"type\": \"general\",\n      \"comment\": \"I want requirements to cover all flags, not just ephemeral mode. Also all subcommands. Also want a `--help` for all commands and subcommands alongside the `help` subcommands\",\n      \"timestamp\": \"2025-10-25T15:13:18.914Z\",\n      \"id\": \"comment_1761405198914_d2xcrzw06\"\n    }\n  ],\n  \"summary\": \"Feedback Summary (1 comments):\\n\\nGeneral Comments:\\n1. I want requirements to cover all flags, not just ephemeral mode. Also all subcommands. Also want a `--help` for all commands and subcommands alongside the `help` subcommands\\n\\n\",\n  \"timestamp\": \"2025-10-25T15:13:21.700Z\"\n}",
+  "respondedAt": "2025-10-25T15:13:21.705Z",
+  "comments": [
+    {
+      "type": "general",
+      "comment": "I want requirements to cover all flags, not just ephemeral mode. Also all subcommands. Also want a `--help` for all commands and subcommands alongside the `help` subcommands",
+      "timestamp": "2025-10-25T15:13:18.914Z",
+      "id": "comment_1761405198914_d2xcrzw06"
+    }
+  ]
+}

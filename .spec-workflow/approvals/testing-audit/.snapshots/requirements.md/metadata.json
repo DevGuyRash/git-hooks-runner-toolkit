@@ -1,0 +1,30 @@
+{
+  "filePath": ".spec-workflow/specs/testing-audit/requirements.md",
+  "currentVersion": 3,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-25T14:53:09.604Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761403989596_8do5ree0v",
+      "approvalTitle": "Approve testing-audit requirements"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-25T15:13:21.704Z",
+      "trigger": "revision_requested",
+      "approvalId": "approval_1761403989596_8do5ree0v",
+      "approvalTitle": "Approve testing-audit requirements"
+    },
+    {
+      "version": 3,
+      "filename": "snapshot-003.json",
+      "timestamp": "2025-10-25T15:14:38.099Z",
+      "trigger": "approved",
+      "approvalId": "approval_1761405241565_iup3ah04n",
+      "approvalTitle": "Approve testing-audit requirements (rev 2)"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "filePath": ".spec-workflow/specs/testing-audit/design.md",
+  "currentVersion": 2,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-10-25T15:16:14.122Z",
+      "trigger": "initial",
+      "approvalId": "approval_1761405374119_lu4tqb62l",
+      "approvalTitle": "Approve testing-audit design"
+    },
+    {
+      "version": 2,
+      "filename": "snapshot-002.json",
+      "timestamp": "2025-10-25T15:17:51.633Z",
+      "trigger": "approved",
+      "approvalId": "approval_1761405374119_lu4tqb62l",
+      "approvalTitle": "Approve testing-audit design"
+    }
+  ]
+}
