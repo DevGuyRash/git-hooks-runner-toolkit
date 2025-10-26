@@ -158,50 +158,26 @@ matrix_capture_hooks_path() {
 }
 
 matrix_capture_manifest_value() {
-  _matrix_key=$1
-  _matrix_manifest="${GIT_REPO_WORK}/.git/.githooks/manifest.sh"
-  if [ ! -f "${_matrix_manifest}" ]; then
+  if [ -z "${GIT_REPO_WORK:-}" ]; then
     return 1
   fi
-  (
-    # shellcheck disable=SC1090
-    . "${_matrix_manifest}"
-    _matrix_lookup="$(eval "printf '%s' \"\${${_matrix_key}:-}\"")"
-    printf '%s' "${_matrix_lookup}"
-  )
+  git_repo_manifest_value "$1"
 }
 
 matrix_capture_overlay_roots() {
-  if [ -z "${GIT_REPO_WORK:-}" ]; then
+  if [ -z "${GIT_REPO_WORK:-}" ] || [ -z "${GIT_REPO_HOME:-}" ]; then
     printf '%s' ''
     return 0
   fi
-  _matrix_precedence=$(matrix_capture_manifest_value PRECEDENCE_MODE || true)
-  _matrix_roots=$(git_repo_exec PROJECT_ROOT="${PROJECT_ROOT}" GITHOOKS_EPHEMERAL_PRECEDENCE="${_matrix_precedence}" sh -c '
-    set -eu
-    project="${PROJECT_ROOT:-}"
-    if [ -z "${project}" ]; then
-      exit 0
-    fi
-    common_lib="${project}/lib/common.sh"
-    lifecycle_lib="${project}/lib/ephemeral_lifecycle.sh"
-    overlay_lib="${project}/lib/ephemeral_overlay.sh"
-    if [ ! -f "${common_lib}" ] || [ ! -f "${lifecycle_lib}" ] || [ ! -f "${overlay_lib}" ]; then
-      exit 0
-    fi
-    # shellcheck disable=SC1090
-    . "${common_lib}"
-    # shellcheck disable=SC1090
-    . "${lifecycle_lib}"
-    # shellcheck disable=SC1090
-    . "${overlay_lib}"
-    ephemeral_overlay_resolve_roots
-  ' 2>/dev/null || true)
-  if [ -z "${_matrix_roots}" ]; then
+  git_repo_overlay_roots || true
+}
+
+matrix_capture_overlay_log() {
+  if [ -z "${GIT_REPO_WORK:-}" ] || [ -z "${GIT_REPO_HOME:-}" ]; then
     printf '%s' ''
     return 0
   fi
-  printf '%s' "${_matrix_roots}"
+  git_repo_overlay_log || true
 }
 
 matrix_capture_precedence() {
@@ -379,32 +355,42 @@ run_case() {
 
   hooks_path=$(matrix_capture_hooks_path)
   overlay_lines=$(matrix_capture_overlay_roots)
+  overlay_log=$(matrix_capture_overlay_log)
   precedence_mode=$(matrix_capture_precedence)
   if [ -n "${precedence_mode}" ]; then
     case_note "precedence:${precedence_mode}"
   fi
-  if [ -n "${overlay_lines}" ]; then
-    _overlay_issue=0
-    _overlay_nl=$(printf '\n_')
-    _overlay_saved_ifs=${IFS}
-    IFS=${_overlay_nl%_}
+  overlay_truncated=0
+  if [ -n "${overlay_log}" ]; then
+    _overlay_log_issue=0
+    _overlay_log_nl=$(printf '\n_')
+    _overlay_log_saved_ifs=${IFS}
+    IFS=${_overlay_log_nl%_}
     set -f
-    for _overlay_entry in ${overlay_lines}; do
-      [ -n "${_overlay_entry}" ] || continue
-      case "${_overlay_entry}" in
-        /*)
-          :
-          ;;
-        *)
-          _overlay_issue=1
+    for _overlay_log_line in ${overlay_log}; do
+      [ -n "${_overlay_log_line}" ] || continue
+      case "${_overlay_log_line}" in
+        *'INFO:   ['*)
+          case "${_overlay_log_line}" in
+            *'] /'*)
+              ;;
+            *)
+              _overlay_log_issue=1
+              ;;
+          esac
           ;;
       esac
     done
     set +f
-    IFS=${_overlay_saved_ifs}
-    if [ ${_overlay_issue} -eq 1 ]; then
-      case_note 'overlay-truncated'
+    IFS=${_overlay_log_saved_ifs}
+    if [ ${_overlay_log_issue} -eq 1 ]; then
+      overlay_truncated=1
     fi
+  elif [ -n "${overlay_lines}" ]; then
+    case_note 'overlay-log-empty'
+  fi
+  if [ ${overlay_truncated} -eq 1 ]; then
+    case_note 'overlay-truncated'
   fi
 
   stdout_crc=$(matrix_crc "${stdout_file}")
