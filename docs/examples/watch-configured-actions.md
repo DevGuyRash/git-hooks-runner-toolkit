@@ -134,3 +134,187 @@ continue_on_error=true
 - Git must be available (used to collect changed paths).
 - [`yq`](https://mikefarah.gitbook.io/yq/) for YAML configs, [`jq`](https://stedolan.github.io/jq/) for JSON.
 - Rules that run commands rely on those commands being available on `PATH`.
+
+## Sample Config Library
+
+Drop any of these YAML fragments into your shared config file to trigger
+ecosystem-specific automation. Each snippet can coexist with the earlier
+examples; mix and match as needed.
+
+### Go Service (tidy + build)
+
+```yaml
+- name: go tidy & build
+  patterns:
+    - "go.mod"
+    - "go.sum"
+  commands:
+    - "go mod tidy"
+    - "go build -o bin/service ./..."
+```
+
+### Rust Workspace (fmt + clippy)
+
+```yaml
+- name: rust hygiene
+  patterns:
+    - "Cargo.toml"
+    - "Cargo.lock"
+    - "**/*.rs"
+  commands:
+    - "cargo fmt"
+    - "cargo clippy --all-targets --all-features"
+```
+
+### Python (uv + pytest)
+
+```yaml
+- name: python sync & test
+  patterns:
+    - "pyproject.toml"
+    - "uv.lock"
+    - "requirements*.txt"
+  commands:
+    - "uv sync"
+    - "pytest --maxfail=1 --disable-warnings"
+```
+
+### Node Monorepo (pnpm + lint + build)
+
+```yaml
+- name: pnpm install
+  patterns:
+    - "pnpm-lock.yaml"
+    - "package.json"
+  commands:
+    - "pnpm install --frozen-lockfile"
+- name: frontend quality
+  patterns:
+    - "packages/web/**/*.{ts,tsx,js,jsx}"
+    - "packages/web/tsconfig*.json"
+  commands:
+    - "pnpm lint"
+    - "pnpm test --filter web -- --runInBand"
+    - "pnpm build --filter web"
+```
+
+### Java & Gradle
+
+```yaml
+- name: gradle sync
+  patterns:
+    - "build.gradle"
+    - "settings.gradle"
+    - "build.gradle.kts"
+    - "settings.gradle.kts"
+    - "gradle.lockfile"
+  commands:
+    - "./gradlew --quiet dependencies || gradle --quiet dependencies"
+    - "./gradlew test"
+```
+
+### .NET Solution
+
+```yaml
+- name: dotnet restore & test
+  patterns:
+    - "*.sln"
+    - "*.csproj"
+    - "*.fsproj"
+    - "packages.lock.json"
+    - "Directory.Packages.props"
+  commands:
+    - "dotnet restore"
+    - "dotnet test --no-build"
+```
+
+### Terraform & Infrastructure as Code
+
+```yaml
+- name: terraform validate
+  patterns:
+    - "infra/**/*.tf"
+    - "infra/**/*.tfvars"
+  commands:
+    - "terraform -chdir=infra init -backend=false"
+    - "terraform -chdir=infra validate"
+```
+
+### Kubernetes & Helm Charts
+
+```yaml
+- name: helm lint
+  patterns:
+    - "charts/**/Chart.yaml"
+    - "charts/**/values*.yaml"
+  commands:
+    - "helm dependency update charts"
+    - "helm lint charts"
+```
+
+### Data Pipelines (dbt + Airflow DAGs)
+
+```yaml
+- name: dbt artifacts
+  patterns:
+    - "dbt_project.yml"
+    - "models/**/*.sql"
+  commands:
+    - "dbt deps"
+    - "dbt build --select state:modified+"
+- name: airflow lint
+  patterns:
+    - "dags/**/*.py"
+  commands:
+    - "poetry run ruff check dags"
+```
+
+### Docker Images
+
+```yaml
+- name: docker rebuild
+  patterns:
+    - "Dockerfile"
+    - "docker/**/*.Dockerfile"
+    - "docker/**/requirements.txt"
+  commands:
+    - "docker build -t my-org/app:latest ."
+```
+
+### Documentation Sites (Sphinx + MkDocs)
+
+```yaml
+- name: sphinx docs
+  patterns:
+    - "docs/**/*.rst"
+    - "docs/conf.py"
+  commands:
+    - "poetry run sphinx-build -b html docs docs/_build/html"
+- name: mkdocs check
+  patterns:
+    - "mkdocs.yml"
+    - "docs/**/*.md"
+  commands:
+    - "mkdocs build --strict"
+```
+
+### Security & Policy Checks
+
+```yaml
+- name: trivy scan
+  patterns:
+    - "Dockerfile"
+    - "docker/**/Dockerfile"
+  commands:
+    - "trivy image --scanners vuln,secret my-org/app:latest"
+- name: opa policy
+  patterns:
+    - "policies/**/*.rego"
+  commands:
+    - "opa eval --fail-defined --data policies --input request.json 'data.main.allow'"
+  continue_on_error: true
+```
+
+These samples are all valid alongside the core schema described earlier.
+Adjust command lists, glob patterns, and binary names to match your project
+layout and tooling.
