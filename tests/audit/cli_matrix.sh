@@ -477,35 +477,54 @@ main() {
   run_case install-ephemeral-overlay-versioned fresh install --mode ephemeral --overlay versioned-first
   run_case install-ephemeral-overlay-merge fresh install --mode ephemeral --overlay merge
   run_case install-ephemeral-hooks fresh install --mode ephemeral --hooks pre-commit
+  run_case install-ephemeral-flag fresh install --mode ephemeral --help
   run_case install-ephemeral-dry-run fresh install --mode ephemeral --dry-run
 
   run_case stage-default fresh stage
   run_case stage-help-flag fresh stage --help
   run_case stage-help fresh stage help
   run_case stage-help-add fresh stage help add
+  run_case stage-flag-add fresh stage --help add
+  run_case stage-flag-list fresh stage --help list
+  run_case stage-flag-remove fresh stage --help remove
+  run_case stage-flag-unstage fresh stage --help unstage
   run_case stage-add fresh stage add examples
   run_case stage-add-hook fresh stage add examples --hook pre-commit
   run_case stage-add-name fresh stage add examples --name dependency-sync
   run_case stage-add-dry-run fresh stage add examples --dry-run
+  run_case stage-add-topic fresh help stage add
   run_case stage-list fresh stage list
   run_case stage-list-hook standard-installed stage list pre-commit
+  run_case stage-list-flag fresh stage list --help
+  run_case stage-list-topic fresh help stage list
   run_case stage-add-help fresh stage add --help
   run_case stage-unstage staged-examples stage unstage examples --hook pre-commit
+  run_case stage-unstage-flag fresh stage unstage --help
+  run_case stage-unstage-topic fresh help stage unstage
   run_case stage-remove-all staged-examples stage remove pre-commit --all
   run_case stage-remove-help fresh stage remove --help
+  run_case stage-remove-topic fresh help stage remove
 
   run_case hooks-default standard-installed hooks
   run_case hooks-list-hook standard-installed hooks list pre-commit
   run_case hooks-help fresh hooks --help
+  run_case hooks-flag-list fresh hooks --help list
   run_case hooks-help-list fresh hooks help list
   run_case hooks-list-help fresh hooks list --help
+  run_case hooks-list-topic fresh help hooks list
+  run_case help-hooks fresh help hooks
 
   run_case config-show standard-installed config show
   run_case config-show-help fresh config show --help
+  run_case config-show-inline fresh config show help
   run_case config-set fresh config set hooks-path .githooks
   run_case config-set-help fresh config set --help
+  run_case config-set-inline fresh config set help hooks-path
   run_case config-help fresh config --help
+  run_case config-help-show fresh config help show
   run_case config-help-set fresh config help set
+  run_case config-show-topic fresh help config show
+  run_case config-set-topic fresh help config set
 
   run_case uninstall-default standard-installed uninstall
   run_case uninstall-dry-run standard-installed uninstall --dry-run
@@ -514,12 +533,16 @@ main() {
   run_case uninstall-ephemeral-dry-run ephemeral-installed uninstall --mode ephemeral --dry-run
 
   run_case alias-init fresh init --dry-run
+  run_case alias-init-flag fresh init --help
   run_case alias-add fresh add examples --hook pre-commit
+  run_case alias-add-flag fresh add --help
   run_case alias-remove staged-examples remove pre-commit --all
+  run_case alias-remove-flag fresh remove --help
 
   run_case help-stage fresh help stage
   run_case help-config fresh help config
   run_case help-uninstall fresh help uninstall
+  run_case help-help fresh help help
 }
 
 main "$@"
