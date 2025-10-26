@@ -42,6 +42,7 @@ ${WATCH_ACTIONS_RULE_COMMANDS_FILE} ${WATCH_ACTIONS_RULE_CONTINUES_FILE}"
   WATCH_ACTIONS_TRIGGERED=0
   WATCH_ACTIONS_FAIL_STATUS=0
   WATCH_ACTIONS_LEGACY_NOTICE_EMITTED=0
+  WATCH_ACTIONS_CONFIG_LOAD_DIAG=""
 
   trap "watch_actions_cleanup" EXIT HUP INT TERM
 
@@ -275,6 +276,8 @@ watch_actions_load_config_rules() {
   config_path=$1
   ext=${config_path##*.}
 
+  WATCH_ACTIONS_CONFIG_LOAD_DIAG=""
+
   if [ ! -r "${config_path}" ]; then
     githooks_log_error "watch-configured-actions: unable to read ${config_path}; check install mode (persistent vs ephemeral)"
     return 1
@@ -283,24 +286,28 @@ watch_actions_load_config_rules() {
   case "${ext}" in
     yml|yaml)
       if ! command -v yq >/dev/null 2>&1; then
-        githooks_log_warn "watch-configured-actions example: yq not found; cannot parse ${config_path}"
-        return 1
+        githooks_log_warn "watch-configured-actions example: yq not found; skipping ${config_path}"
+        WATCH_ACTIONS_CONFIG_LOAD_DIAG="missing-yq"
+        return 2
       fi
       yaml_filter='.[] | [ (.name // ""), ((.patterns // []) | join("\u001e")), ((.commands // []) | join("\u001f")), ((.continue_on_error // false) | tostring) ] | @tsv'
       if ! config_lines=$(yq eval -r "${yaml_filter}" "${config_path}" 2>/dev/null); then
         config_lines=$(yq -r "${yaml_filter}" "${config_path}" 2>/dev/null) || {
           githooks_log_error "watch-configured-actions: failed to parse ${config_path}; see docs/examples/watch-configured-actions.md"
+          WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
           return 1
         }
       fi
       ;;
     json)
       if ! command -v jq >/dev/null 2>&1; then
-        githooks_log_warn "watch-configured-actions example: jq not found; cannot parse ${config_path}"
-        return 1
+        githooks_log_warn "watch-configured-actions example: jq not found; skipping ${config_path}"
+        WATCH_ACTIONS_CONFIG_LOAD_DIAG="missing-jq"
+        return 2
       fi
       config_lines=$(jq -r '.[] | [ (.name // ""), ((.patterns // []) | join("\u001e")), ((.commands // []) | join("\u001f")), (.continue_on_error // false) ] | @tsv' "${config_path}" 2>/dev/null) || {
         githooks_log_error "watch-configured-actions: failed to parse ${config_path}; see docs/examples/watch-configured-actions.md"
+        WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
         return 1
       }
       ;;
@@ -463,8 +470,18 @@ watch_actions_execute_rules() {
     if watch_actions_load_config_rules "${WATCH_ACTIONS_SELECTED_CONFIG}"; then
       config_loaded=1
     else
-      watch_actions_write_mark_file
-      return 1
+      load_status=$?
+      case "${load_status}" in
+        2)
+          if [ -n "${WATCH_ACTIONS_CONFIG_LOAD_DIAG}" ]; then
+            githooks_log_info "watch-configured-actions example: continuing without central config (${WATCH_ACTIONS_CONFIG_LOAD_DIAG})"
+          fi
+          ;;
+        *)
+          watch_actions_write_mark_file
+          return 1
+          ;;
+      esac
     fi
   fi
 
