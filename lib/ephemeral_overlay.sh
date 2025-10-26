@@ -13,6 +13,7 @@ ephemeral_overlay_list_contains() {
   if [ -z "${_ephemeral_list}" ]; then
     return 1
   fi
+  _ephemeral_list=$(printf '%b' "${_ephemeral_list}")
   _ephemeral_saved_ifs=${IFS}
   IFS="\n"
   set -f
@@ -149,6 +150,7 @@ ephemeral_overlay_resolve_roots() {
 
   _ephemeral_extra=$(ephemeral_overlay_extra_roots)
   if [ -n "${_ephemeral_extra}" ]; then
+    _ephemeral_extra=$(printf '%b' "${_ephemeral_extra}")
     _ephemeral_saved_ifs=${IFS}
     IFS="\n"
     set -f
@@ -168,6 +170,7 @@ ephemeral_overlay_roots_serialized() {
     printf "%s\n" ""
     return 0
   fi
+  _ephemeral_roots=$(printf '%b' "${_ephemeral_roots}")
   _ephemeral_serial=""
   _ephemeral_saved_ifs=${IFS}
   IFS="\n"
@@ -198,12 +201,10 @@ ephemeral_overlay_log_roots() {
     githooks_log_info "Ephemeral overlay order (${_ephemeral_mode}): <none>"
     return 0
   fi
+  _ephemeral_logged_roots=$(printf '%b' "${_ephemeral_logged_roots}")
   githooks_log_info "Ephemeral overlay order (${_ephemeral_mode}):"
-  _ephemeral_saved_ifs=${IFS}
-  IFS="\n"
-  set -f
   _ephemeral_index=0
-  for _ephemeral_logged in ${_ephemeral_logged_roots}; do
+  printf '%b' "${_ephemeral_logged_roots}\n" | while IFS= read -r _ephemeral_logged || [ -n "${_ephemeral_logged}" ]; do
     [ -n "${_ephemeral_logged}" ] || continue
     _ephemeral_index=$((_ephemeral_index + 1))
     if [ -d "${_ephemeral_logged}" ]; then
@@ -213,6 +214,4 @@ ephemeral_overlay_log_roots() {
     fi
     githooks_log_info "  [${_ephemeral_index}] ${_ephemeral_logged} (${_ephemeral_state})"
   done
-  set +f
-  IFS=${_ephemeral_saved_ifs}
 }
