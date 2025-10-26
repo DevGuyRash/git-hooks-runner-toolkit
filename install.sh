@@ -33,6 +33,20 @@ if [ ! -f "${EPHEMERAL_OVERLAY_LIB}" ]; then
 fi
 . "${EPHEMERAL_OVERLAY_LIB}"
 
+CONFIGS_LIB="${SCRIPT_DIR}/lib/configs.sh"
+if [ ! -f "${CONFIGS_LIB}" ]; then
+  printf '[hook-runner] ERROR: missing config library at %s\n' "${CONFIGS_LIB}" >&2
+  exit 1
+fi
+. "${CONFIGS_LIB}"
+
+CONFIGS_REGISTRY_LIB="${SCRIPT_DIR}/lib/configs_registry.sh"
+if [ ! -f "${CONFIGS_REGISTRY_LIB}" ]; then
+  printf '[hook-runner] ERROR: missing config registry at %s\n' "${CONFIGS_REGISTRY_LIB}" >&2
+  exit 1
+fi
+. "${CONFIGS_REGISTRY_LIB}"
+
 print_usage() {
   cat <<'HELP'
 NAME
@@ -141,17 +155,12 @@ STAGE_DETECTED_SOURCE="none"
 STAGE_PLAN_FILE=""
 STAGE_PLAN_COUNT=0
 STAGE_PLANNED_DESTS=""
-STAGE_REQUIRE_WATCH_CONFIG=0
-STAGE_WATCH_CONFIG_DONE=0
-STAGE_WATCH_CONFIG_WARNED=0
-
 UPDATE_REFRESHED_STUBS=0
 UPDATE_PARTS_REFRESHED=0
 UPDATE_PARTS_SKIPPED_IDENTICAL=0
 UPDATE_PARTS_SOURCE_MISSING=0
 UPDATE_SUPPORT_REFRESHED=0
 UPDATE_REFRESH_CONFIGS=0
-UPDATE_CONFIG_SPECS="watch-configured-actions|examples/config/watch-configured-actions.yml|config/watch-configured-actions.yml|644"
 
 parse_hook_list() {
   if [ "$#" -ne 1 ]; then
@@ -206,20 +215,26 @@ ensure_parent_dir() {
 }
 
 install_runner() {
+  shared_root=$(githooks_shared_root)
+  runner_target="${shared_root%/}/_runner.sh"
+  lib_target="${shared_root%/}/lib/common.sh"
+  watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
   if [ "${shared_root_is_ephemeral:-0}" -eq 1 ]; then
     return 0
   fi
+  runner_target_absolute=$(githooks_absolute_path "${runner_target}")
   maybe_run "create shared directory ${shared_root}" githooks_mkdir_p "${shared_root}"
   maybe_run "create library directory ${shared_root%/}/lib" githooks_mkdir_p "${shared_root%/}/lib"
-  maybe_run "copy runner to ${runner_target}" githooks_copy_file "${SCRIPT_DIR}/_runner.sh" "${runner_target}"
+  maybe_run "copy runner to .git/hooks/_runner.sh" githooks_copy_file "${SCRIPT_DIR}/_runner.sh" "${hooks_root%/}/_runner.sh"
   maybe_run "copy shared library to ${lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/common.sh" "${lib_target}"
   maybe_run "copy watch-configured-actions library to ${watch_lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/watch-configured-actions.sh" "${watch_lib_target}"
-  maybe_run "chmod runner ${runner_target}" githooks_chmod 755 "${runner_target}"
+  maybe_run "chmod runner ${hooks_root%/}/_runner.sh" githooks_chmod 755 "${hooks_root%/}/_runner.sh"
 }
 
 write_stub() {
   stub_hook=$1
   stub_path="${hooks_root%/}/${stub_hook}"
+  runner_target_absolute="${hooks_root%/}/_runner.sh"
   if [ -e "${stub_path}" ] && [ "${FORCE}" -eq 0 ]; then
     githooks_log_warn "stub exists for ${stub_hook}; use --force to overwrite"
     return 0
@@ -229,7 +244,7 @@ write_stub() {
     return 0
   fi
   tmp_stub="${stub_path}.tmp"
-  githooks_stub_body "${stub_runner}" "${stub_hook}" >"${tmp_stub}"
+  githooks_stub_body "${runner_target_absolute}" "${stub_hook}" >"${tmp_stub}"
   mv "${tmp_stub}" "${stub_path}"
   githooks_chmod 755 "${stub_path}"
 }
@@ -646,84 +661,11 @@ stage_register_support_assets() {
     return 0
   fi
   support_name=$1
-  support_source=$2
-  case "${support_name}" in
-    watch-configured-actions.sh|watch-configured-actions-pre-commit.sh)
-      case "${support_source}" in
-        "${SCRIPT_DIR%/}/examples")
-          STAGE_REQUIRE_WATCH_CONFIG=1
-          ;;
-      esac
-      ;;
-  esac
+  githooks_config_require_for_part "${support_name}"
 }
 
-stage_warn_legacy_watch_config() {
-  if [ "$#" -ne 1 ]; then
-    return 0
-  fi
-  if [ "${STAGE_WATCH_CONFIG_WARNED}" -eq 1 ]; then
-    return 0
-  fi
-  config_hint=$1
-  legacy_versioned_root="$(githooks_repo_top)/.githooks"
-  for legacy in \
-    "${legacy_versioned_root}/watch-configured-actions.yml" \
-    "${legacy_versioned_root}/watch-configured-actions.yaml" \
-    "${legacy_versioned_root}/watch-configured-actions.json" \
-    "${legacy_versioned_root}/watch-config.yml" \
-    "${legacy_versioned_root}/watch-config.yaml" \
-    "${legacy_versioned_root}/watch-config.json"; do
-    if [ -f "${legacy}" ]; then
-      githooks_log_warn "watch-configured-actions example: legacy config detected at ${legacy}; migrate to ${config_hint}"
-      STAGE_WATCH_CONFIG_WARNED=1
-      break
-    fi
-  done
-}
-
-stage_install_watch_config() {
-  if [ "${STAGE_REQUIRE_WATCH_CONFIG}" -eq 0 ]; then
-    return 0
-  fi
-  if [ "${STAGE_WATCH_CONFIG_DONE}" -eq 1 ]; then
-    return 0
-  fi
-  config_src="${SCRIPT_DIR%/}/examples/config/watch-configured-actions.yml"
-  if [ ! -f "${config_src}" ]; then
-    githooks_log_warn "watch-configured-actions example: config asset missing at ${config_src}; skipping copy"
-    STAGE_WATCH_CONFIG_DONE=1
-    return 0
-  fi
-  config_dir="${hooks_root%/}/config"
-  config_dest="${config_dir%/}/watch-configured-actions.yml"
-  if [ "${DRY_RUN}" -eq 1 ]; then
-    githooks_log_info "DRY-RUN: ensure config directory ${config_dir}"
-    githooks_log_info "DRY-RUN: stage config ${config_src} -> ${config_dest}"
-    STAGE_WATCH_CONFIG_DONE=1
-    stage_warn_legacy_watch_config "${config_dest}"
-    return 0
-  fi
-  githooks_mkdir_p "${config_dir}"
-  if [ -f "${config_dest}" ] && [ "${FORCE}" -eq 0 ] && stage_files_identical "${config_src}" "${config_dest}"; then
-    githooks_log_info "stage skip identical ${config_dest}"
-    STAGE_WATCH_CONFIG_DONE=1
-    stage_warn_legacy_watch_config "${config_dest}"
-    return 0
-  fi
-  config_tmp="${config_dest}.stage.$$"
-  if ! cp "${config_src}" "${config_tmp}"; then
-    rm -f "${config_tmp}" 2>/dev/null || true
-    githooks_die "Failed to stage config ${config_dest}"
-  fi
-  githooks_chmod 644 "${config_tmp}"
-  if ! mv "${config_tmp}" "${config_dest}"; then
-    rm -f "${config_tmp}" 2>/dev/null || true
-    githooks_die "Failed to finalise config ${config_dest}"
-  fi
-  githooks_log_info "stage config ${config_dest}"
-  STAGE_WATCH_CONFIG_DONE=1
-  stage_warn_legacy_watch_config "${config_dest}"
+stage_install_required_configs() {
+  githooks_config_install_required
 }
 
 stage_summary_requested() {
@@ -1122,9 +1064,7 @@ stage_reset_state() {
   STAGE_SKIP_IDENTICAL=0
   STAGE_SKIPPED_FILES=0
   STAGE_RUNNER_READY=0
-  STAGE_REQUIRE_WATCH_CONFIG=0
-  STAGE_WATCH_CONFIG_DONE=0
-  STAGE_WATCH_CONFIG_WARNED=0
+  githooks_config_clear_required
 }
 
 stage_build_plan() {
@@ -1188,7 +1128,7 @@ run_stage() {
     return 1
   fi
   if [ "${STAGE_PLAN_COUNT}" -eq 0 ]; then
-    stage_install_watch_config
+    stage_install_required_configs
     stage_finish_no_plan "stage" "0 file(s) updated"
     return 0
   fi
@@ -1208,9 +1148,9 @@ run_stage() {
     stage_dest="${parts_dir%/}/${plan_name}"
     githooks_log_info "stage plan ${plan_rel} -> ${plan_hook}"
     stage_copy_part "${plan_file}" "${stage_dest}"
-    stage_install_watch_config
+    stage_install_required_configs
   done <"${STAGE_PLAN_FILE}"
-  stage_install_watch_config
+  stage_install_required_configs
   stage_cleanup_plan
   githooks_log_info "stage complete: ${STAGE_COPY_COUNT} file(s) updated"
   if [ "${STAGE_SKIP_IDENTICAL}" -gt 0 ]; then
@@ -2170,52 +2110,7 @@ update_refresh_support_configs() {
   if [ "${UPDATE_REFRESH_CONFIGS}" -ne 1 ]; then
     return 0
   fi
-  if [ -z "${UPDATE_CONFIG_SPECS}" ]; then
-    return 0
-  fi
-  _update_support_specs=$(printf '%s\n' "${UPDATE_CONFIG_SPECS}")
-  _update_support_saved_ifs=${IFS}
-  _update_support_newline=$(printf '\n_')
-  IFS=${_update_support_newline%_}
-  set -f
-  for _update_support_spec in ${_update_support_specs}; do
-    if [ -z "${_update_support_spec}" ]; then
-      continue
-    fi
-    _update_support_spec_saved_ifs=${IFS}
-    IFS='|'
-    set -- ${_update_support_spec}
-    IFS=${_update_support_spec_saved_ifs}
-    if [ "$#" -lt 3 ]; then
-      continue
-    fi
-    _update_support_name=$1
-    _update_support_src_rel=$2
-    _update_support_dest_rel=$3
-    _update_support_mode=${4:-644}
-    if [ -z "${_update_support_src_rel}" ] || [ -z "${_update_support_dest_rel}" ]; then
-      continue
-    fi
-    _update_support_src="${SCRIPT_DIR%/}/${_update_support_src_rel}"
-    if [ ! -f "${_update_support_src}" ]; then
-      githooks_log_info "update skip ${_update_support_name:-config}: source not found"
-      continue
-    fi
-    _update_support_root=$(githooks_hooks_root)
-    _update_support_dest="${_update_support_root%/}/${_update_support_dest_rel}"
-    if [ ! -f "${_update_support_dest}" ]; then
-      githooks_log_info "update skip ${_update_support_name:-config}: destination missing"
-      continue
-    fi
-    if [ "${FORCE}" -eq 0 ] && stage_files_identical "${_update_support_src}" "${_update_support_dest}"; then
-      continue
-    fi
-    if update_replace_file "${_update_support_src}" "${_update_support_dest}" "${_update_support_mode}" "${_update_support_dest_rel}"; then
-      UPDATE_SUPPORT_REFRESHED=$((UPDATE_SUPPORT_REFRESHED + 1))
-    fi
-  done
-  set +f
-  IFS=${_update_support_saved_ifs}
+  githooks_config_refresh_all
 }
 
 update_count_hooks() {
@@ -3142,6 +3037,7 @@ cmd_uninstall() {
   for hook in ${HOOKS}; do
     uninstall_stub "${hook}"
   done
+  githooks_config_remove_all
   remove_runner_files
   githooks_log_info "uninstallation complete"
 }
@@ -3194,6 +3090,8 @@ cmd_uninstall_ephemeral() {
 
   EPHEMERAL_TARGET_PATH=$(ephemeral_hooks_path_absolute)
   EPHEMERAL_PREVIOUS_CONFIG=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
+
+  githooks_config_remove_all
 
   ephemeral_uninstall
 
