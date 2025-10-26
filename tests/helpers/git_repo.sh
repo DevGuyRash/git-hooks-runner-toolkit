@@ -105,3 +105,31 @@ git_repo_manifest_value() {
   )
 }
 
+git_repo_manifest_snapshot() {
+  if [ -z "${GIT_REPO_WORK:-}" ]; then
+    return 1
+  fi
+  ghr_manifest_snapshot "${GIT_REPO_WORK}"
+}
+
+git_repo_overlay_roots() {
+  if [ -z "${GIT_REPO_WORK:-}" ] || [ -z "${GIT_REPO_HOME:-}" ]; then
+    return 1
+  fi
+  ghr_overlay_resolve_roots "${GIT_REPO_WORK}" "${GIT_REPO_HOME}"
+}
+
+git_repo_overlay_log() {
+  if [ -z "${GIT_REPO_WORK:-}" ] || [ -z "${GIT_REPO_HOME:-}" ]; then
+    return 1
+  fi
+  ghr_overlay_log_dump "${GIT_REPO_WORK}" "${GIT_REPO_HOME}"
+}
+
+git_repo_environment_snapshot() {
+  if [ -z "${GIT_REPO_WORK:-}" ] || [ -z "${GIT_REPO_HOME:-}" ]; then
+    return 1
+  fi
+  ghr_environment_snapshot "${GIT_REPO_WORK}" "${GIT_REPO_HOME}"
+}
+

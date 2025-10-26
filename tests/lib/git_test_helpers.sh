@@ -162,3 +162,180 @@ ghr_read_or_empty() {
     "${GHR_CAT}" -- "${ghr_file}"
   fi
 }
+
+ghr_manifest_path_for_repo() {
+  if [ "$#" -ne 1 ]; then
+    printf 'ghr_manifest_path_for_repo requires <repo>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  printf '%s/.git/.githooks/manifest.sh\n' "${ghr_repo%/}"
+}
+
+ghr_manifest_value() {
+  if [ "$#" -ne 2 ]; then
+    printf 'ghr_manifest_value requires <repo> <key>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  ghr_key=$2
+  ghr_manifest=$(ghr_manifest_path_for_repo "${ghr_repo}")
+  if [ ! -f "${ghr_manifest}" ]; then
+    return 1
+  fi
+  (
+    # shellcheck disable=SC1090
+    . "${ghr_manifest}"
+    eval "printf '%s\\n' \"\${${ghr_key}-}\""
+  )
+}
+
+ghr_manifest_snapshot() {
+  if [ "$#" -ne 1 ]; then
+    printf 'ghr_manifest_snapshot requires <repo>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  ghr_manifest=$(ghr_manifest_path_for_repo "${ghr_repo}")
+  if [ ! -f "${ghr_manifest}" ]; then
+    return 1
+  fi
+  ghr_keys=""
+  while IFS= read -r ghr_line; do
+    case "${ghr_line}" in
+      ''|'#'*)
+        continue
+        ;;
+    esac
+    ghr_key=${ghr_line%%=*}
+    if [ -z "${ghr_keys}" ]; then
+      ghr_keys=${ghr_key}
+    else
+      ghr_keys="${ghr_keys} ${ghr_key}"
+    fi
+  done <"${ghr_manifest}"
+  (
+    set -eu
+    # shellcheck disable=SC1090
+    . "${ghr_manifest}"
+    for ghr_key in ${ghr_keys}; do
+      eval "ghr_value=\"\${${ghr_key}-}\""
+      printf '%s=%s\n' "${ghr_key}" "${ghr_value}"
+    done
+  )
+}
+
+ghr_overlay_resolve_roots() {
+  if [ "$#" -ne 2 ]; then
+    printf 'ghr_overlay_resolve_roots requires <repo> <home>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  ghr_home=$2
+  ghr_in_repo "${ghr_repo}" "${ghr_home}" \
+    PROJECT_ROOT="${GIT_REPO_PROJECT_ROOT:-}" \
+    GIT_REPO_PROJECT_ROOT="${GIT_REPO_PROJECT_ROOT:-}" \
+    sh -eu <<'SH'
+project=${PROJECT_ROOT:-${GIT_REPO_PROJECT_ROOT:-}}
+if [ -z "${project}" ]; then
+  exit 0
+fi
+common="${project}/lib/common.sh"
+lifecycle="${project}/lib/ephemeral_lifecycle.sh"
+overlay="${project}/lib/ephemeral_overlay.sh"
+if [ ! -f "${common}" ] || [ ! -f "${lifecycle}" ] || [ ! -f "${overlay}" ]; then
+  exit 0
+fi
+# shellcheck disable=SC1090
+. "${common}"
+# shellcheck disable=SC1090
+. "${lifecycle}"
+# shellcheck disable=SC1090
+. "${overlay}"
+
+precedence=$(ephemeral_manifest_get PRECEDENCE_MODE || true)
+if [ -n "${precedence}" ]; then
+  export GITHOOKS_EPHEMERAL_PRECEDENCE="${precedence}"
+fi
+
+roots=$(ephemeral_overlay_resolve_roots)
+printf '%s\n' "${roots}" | sed 's/\\n/\n/g'
+SH
+}
+
+ghr_overlay_log_dump() {
+  if [ "$#" -ne 2 ]; then
+    printf 'ghr_overlay_log_dump requires <repo> <home>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  ghr_home=$2
+  ghr_in_repo "${ghr_repo}" "${ghr_home}" \
+    PROJECT_ROOT="${GIT_REPO_PROJECT_ROOT:-}" \
+    GIT_REPO_PROJECT_ROOT="${GIT_REPO_PROJECT_ROOT:-}" \
+    sh -eu <<'SH'
+project=${PROJECT_ROOT:-${GIT_REPO_PROJECT_ROOT:-}}
+if [ -z "${project}" ]; then
+  exit 0
+fi
+common="${project}/lib/common.sh"
+lifecycle="${project}/lib/ephemeral_lifecycle.sh"
+overlay="${project}/lib/ephemeral_overlay.sh"
+if [ ! -f "${common}" ] || [ ! -f "${lifecycle}" ] || [ ! -f "${overlay}" ]; then
+  exit 0
+fi
+# shellcheck disable=SC1090
+. "${common}"
+# shellcheck disable=SC1090
+. "${lifecycle}"
+# shellcheck disable=SC1090
+. "${overlay}"
+
+precedence=$(ephemeral_manifest_get PRECEDENCE_MODE || true)
+if [ -n "${precedence}" ]; then
+  export GITHOOKS_EPHEMERAL_PRECEDENCE="${precedence}"
+fi
+
+roots=$(ephemeral_overlay_resolve_roots)
+mode_value=${precedence:-$(ephemeral_precedence_mode)}
+if [ -z "${roots}" ]; then
+  printf '[hook-runner] INFO: Ephemeral overlay order (%s): <none>\n' "${mode_value}"
+  exit 0
+fi
+printf '[hook-runner] INFO: Ephemeral overlay order (%s):\n' "${mode_value}"
+index=0
+printf '%s\n' "${roots}" | sed 's/\\n/\n/g' | while IFS= read -r path; do
+  [ -n "${path}" ] || continue
+  index=$((index + 1))
+  if [ -d "${path}" ]; then
+    state=present
+  else
+    state=missing
+  fi
+  printf '[hook-runner] INFO:   [%d] %s (%s)\n' "${index}" "${path}" "${state}"
+done
+SH
+}
+
+ghr_environment_snapshot() {
+  if [ "$#" -ne 2 ]; then
+    printf 'ghr_environment_snapshot requires <repo> <home>\n' >&2
+    return 2
+  fi
+  ghr_repo=$1
+  ghr_home=$2
+  ghr_in_repo "${ghr_repo}" "${ghr_home}" sh -eu <<'SH'
+env_keys="PWD HOME PATH TMPDIR SHELL USER LOGNAME GIT_REPO_WORK GIT_REPO_HOME GIT_REPO_BASE GIT_REPO_REMOTE"
+for env_key in ${env_keys}; do
+  eval "env_value=\"\${${env_key}-}\""
+  printf '%s=%s\n' "${env_key}" "${env_value}"
+done
+if command -v git >/dev/null 2>&1; then
+  git_version=$(git --version 2>/dev/null || printf 'unknown')
+  printf 'GIT_VERSION=%s\n' "${git_version}"
+else
+  printf 'GIT_VERSION=missing\n'
+fi
+printf 'UNAME_S=%s\n' "$(uname -s 2>/dev/null || printf 'unknown')"
+SH
+}
