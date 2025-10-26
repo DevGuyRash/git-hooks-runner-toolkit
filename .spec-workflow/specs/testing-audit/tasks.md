@@ -22,7 +22,7 @@
   - _Requirements: 2.1, 2.3_
   - _Prompt: Implement the task for spec testing-audit, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Shell QA Engineer focusing on CLI UX | Task: Implement help_snapshot.sh and cli_help.bats to exercise every help/--help surface, compare outputs against stored fixtures, and flag undocumented commands fulfilling requirements 2.1 and 2.3 | Restrictions: Store fixtures under tests/audit/output/help/, keep outputs trimmed of transient data, ensure tests guide contributors on regenerating fixtures | _Leverage: install.sh, tests/helpers/git_repo.sh | _Requirements: 2.1, 2.3 | Success: Tests detect new or changed help text, fixtures easy to update with documented command, coverage report lists any help surface missing automated checks_
 
-- [ ] 4. Aggregate audit findings into machine-readable reports
+- [x] 4. Aggregate audit findings into machine-readable reports
   - Files: tests/audit/report.sh; tests/audit/output/audit-findings.json; tests/audit/output/audit-findings.txt
   - Convert NDJSON matrix results into sorted JSON/text summaries highlighting failures, missing tests, and recommended follow-ups.
   - _Leverage: tests/audit/cli_matrix.sh; tests/audit/cli_help.bats_
