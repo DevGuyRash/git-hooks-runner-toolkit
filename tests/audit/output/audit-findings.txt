@@ -27,9 +27,7 @@ flag-gap
 - surface:stage-unstage-topic: No matrix coverage for `githooks help stage unstage` (fixture stage-unstage-topic)
 
 coverage-gap
-- config-set-help: Exit 1 notes: help-flag, exit-nonzero:1
+- none
 
 alias-divergence
-- alias-add: Alias `alias-add` diverges from `stage-add-hook` (exit 0 / 0, stdout 3289730152:1672 / 4136878329:1672, stderr 3604251533:83 / 4294967295:0)
-- alias-init: Alias `alias-init` diverges from `install-dry-run` (exit 0 / 0, stdout 1645853825:2305 / 3282525957:2305, stderr 1551075480:84 / 4294967295:0)
-- alias-remove: Alias `alias-remove` diverges from `stage-remove-all` (exit 0 / 0, stdout 1552098828:228 / 183900673:228, stderr 1273623010:86 / 4294967295:0)
+- none

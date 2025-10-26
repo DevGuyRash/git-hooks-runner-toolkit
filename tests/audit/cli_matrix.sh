@@ -29,6 +29,8 @@ export GIT_REPO_PROJECT_ROOT
 # shellcheck disable=SC1090
 . "${REPO_HELPER}"
 
+export GITHOOKS_SILENCE_COMPAT_WARN=1
+
 # Reset errexit that may be enabled by sourced helpers; command failures are
 # captured per-case instead of aborting the matrix run.
 set +e
@@ -91,6 +93,44 @@ case_note() {
 
 matrix_tmp() {
   mktemp "${TMP_ROOT}/cli-matrix.XXXXXX"
+}
+
+matrix_escape_sed() {
+  if [ "$#" -ne 1 ]; then
+    return 0
+  fi
+  printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/[&|]/\\&/g'
+}
+
+matrix_replace_path() {
+  if [ "$#" -ne 3 ]; then
+    return 0
+  fi
+  replace_file=$1
+  replace_from=$2
+  replace_to=$3
+  if [ -z "${replace_from}" ] || [ ! -f "${replace_file}" ]; then
+    return 0
+  fi
+  replace_escaped=$(matrix_escape_sed "${replace_from}")
+  replace_tmp=$(matrix_tmp)
+  sed "s|${replace_escaped}|${replace_to}|g" "${replace_file}" >"${replace_tmp}"
+  mv "${replace_tmp}" "${replace_file}"
+}
+
+matrix_sanitize_file() {
+  if [ "$#" -ne 1 ]; then
+    return 0
+  fi
+  sanitize_target=$1
+  if [ ! -f "${sanitize_target}" ]; then
+    return 0
+  fi
+  matrix_replace_path "${sanitize_target}" "${GIT_REPO_WORK:-}" '<repo>'
+  matrix_replace_path "${sanitize_target}" "${GIT_REPO_REMOTE:-}" '<remote>'
+  matrix_replace_path "${sanitize_target}" "${GIT_REPO_HOME:-}" '<home>'
+  matrix_replace_path "${sanitize_target}" "${GIT_REPO_BASE:-}" '<sandbox>'
+  matrix_replace_path "${sanitize_target}" "${TMP_ROOT:-}" '<tmp-root>'
 }
 
 sandbox_cli_exec() {
@@ -392,6 +432,9 @@ run_case() {
   if [ ${overlay_truncated} -eq 1 ]; then
     case_note 'overlay-truncated'
   fi
+
+  matrix_sanitize_file "${stdout_file}"
+  matrix_sanitize_file "${stderr_file}"
 
   stdout_crc=$(matrix_crc "${stdout_file}")
   stderr_crc=$(matrix_crc "${stderr_file}")
