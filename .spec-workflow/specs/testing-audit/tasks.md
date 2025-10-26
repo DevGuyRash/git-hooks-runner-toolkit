@@ -36,7 +36,7 @@
   - _Requirements: 3.1, 3.2_
   - _Prompt: Implement the task for spec testing-audit, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Test Infrastructure Engineer | Task: Enhance shared helpers to capture overlay logs, manifest state, and environment data for audit tasks per requirements 3.1 and 3.2, while maintaining backward compatibility | Restrictions: Preserve POSIX shell compatibility, avoid breaking existing tests, add unit coverage for new helpers | _Leverage: tests/helpers/git_repo.sh, tests/lib/git_test_helpers.sh, lib/ephemeral_overlay.sh | _Requirements: 3.1, 3.2 | Success: New helpers expose overlay/manifest inspection APIs, existing suites remain green, added tests validate helper behaviour_
 
-- [ ] 6. Wire audit pipeline into CI and developer workflows
+- [x] 6. Wire audit pipeline into CI and developer workflows
   - Files: tests/audit/run.sh; package scripts or Makefile; docs/CONTRIBUTING.md (optional note only if policy allows)
   - Provide a single entry point to execute matrix + Bats suites + report generation and update CI configs or scripts to fail on new issues.
   - _Leverage: existing test runner scripts; tests/test_git_hooks_runner.sh_
