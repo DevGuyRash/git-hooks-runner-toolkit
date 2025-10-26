@@ -1695,7 +1695,9 @@ compat_warn() {
     return 0
   fi
   if [ "${COMPAT_WARNED}" -eq 0 ]; then
-    githooks_log_warn "legacy command alias '$1' detected; prefer modern subcommands"
+    if [ "${GITHOOKS_SILENCE_COMPAT_WARN:-0}" != "1" ]; then
+      githooks_log_warn "legacy command alias '$1' detected; prefer modern subcommands"
+    fi
   fi
   COMPAT_WARNED=1
 }
