@@ -2,29 +2,7 @@ log-truncation
 - none
 
 flag-gap
-- surface:config-help-show: No matrix coverage for `githooks config help show` (fixture config-help-show)
-- surface:config-set-inline: No matrix coverage for `githooks config set help hooks-path` (fixture config-set-inline)
-- surface:config-set-topic: No matrix coverage for `githooks help config set` (fixture config-set-topic)
-- surface:config-show-inline: No matrix coverage for `githooks config show help` (fixture config-show-inline)
-- surface:config-show-topic: No matrix coverage for `githooks help config show` (fixture config-show-topic)
-- surface:help-help: No matrix coverage for `githooks help help` (fixture help-help)
-- surface:hooks-command: No matrix coverage for `githooks help hooks` (fixture hooks-command)
-- surface:hooks-help-list: No matrix coverage for `githooks hooks --help list` (fixture hooks-help-list)
-- surface:hooks-list-topic: No matrix coverage for `githooks help hooks list` (fixture hooks-list-topic)
-- surface:install-ephemeral-flag: No matrix coverage for `githooks install --mode ephemeral --help` (fixture install-ephemeral-flag)
-- surface:legacy-add-flag: No matrix coverage for `githooks add --help` (fixture legacy-add-flag)
-- surface:legacy-init-flag: No matrix coverage for `githooks init --help` (fixture legacy-init-flag)
-- surface:legacy-remove-flag: No matrix coverage for `githooks remove --help` (fixture legacy-remove-flag)
-- surface:stage-add-topic: No matrix coverage for `githooks help stage add` (fixture stage-add-topic)
-- surface:stage-help-add: No matrix coverage for `githooks stage --help add` (fixture stage-help-add)
-- surface:stage-help-list: No matrix coverage for `githooks stage --help list` (fixture stage-help-list)
-- surface:stage-help-remove: No matrix coverage for `githooks stage --help remove` (fixture stage-help-remove)
-- surface:stage-help-unstage: No matrix coverage for `githooks stage --help unstage` (fixture stage-help-unstage)
-- surface:stage-list-flag: No matrix coverage for `githooks stage list --help` (fixture stage-list-flag)
-- surface:stage-list-topic: No matrix coverage for `githooks help stage list` (fixture stage-list-topic)
-- surface:stage-remove-topic: No matrix coverage for `githooks help stage remove` (fixture stage-remove-topic)
-- surface:stage-unstage-flag: No matrix coverage for `githooks stage unstage --help` (fixture stage-unstage-flag)
-- surface:stage-unstage-topic: No matrix coverage for `githooks help stage unstage` (fixture stage-unstage-topic)
+- none
 
 coverage-gap
 - none
