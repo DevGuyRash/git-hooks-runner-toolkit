@@ -203,7 +203,7 @@ example_test_watch_configured_actions_copies_config_ephemeral() {
   fi
 
   config_path="${repo_dir}/.git/.githooks/config/watch-configured-actions.yml"
-  part_path="${repo_dir}/.githooks/pre-commit.d/watch-configured-actions-pre-commit.sh"
+  part_path="${repo_dir}/.git/.githooks/parts/pre-commit.d/watch-configured-actions-pre-commit.sh"
 
   if [ "${rc}" -eq 0 ]; then
     if [ ! -f "${config_path}" ]; then

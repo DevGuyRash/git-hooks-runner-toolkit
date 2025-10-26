@@ -154,7 +154,17 @@ githooks_shared_root() {
   if githooks_is_bare_repo; then
     printf '%s/hooks\n' "${GITHOOKS_REPO_GIT_DIR%/}"
   else
-    printf '%s/.githooks\n' "${GITHOOKS_REPO_TOP%/}"
+    _githooks_ephemeral_root="${GITHOOKS_REPO_GIT_DIR%/}/.githooks"
+    if [ -d "${_githooks_ephemeral_root}/parts" ] || [ -f "${_githooks_ephemeral_root}/manifest.sh" ]; then
+      printf '%s\n' "${_githooks_ephemeral_root}/parts"
+      return 0
+    fi
+    _githooks_versioned_root="${GITHOOKS_REPO_TOP%/}/.githooks"
+    if [ -d "${_githooks_versioned_root}" ]; then
+      printf '%s\n' "${_githooks_versioned_root}"
+      return 0
+    fi
+    printf '%s\n' "${_githooks_versioned_root}"
   fi
 }
 

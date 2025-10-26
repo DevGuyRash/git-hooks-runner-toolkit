@@ -195,6 +195,9 @@ ensure_parent_dir() {
 }
 
 install_runner() {
+  if [ "${shared_root_is_ephemeral:-0}" -eq 1 ]; then
+    return 0
+  fi
   maybe_run "create shared directory ${shared_root}" githooks_mkdir_p "${shared_root}"
   maybe_run "create library directory ${shared_root%/}/lib" githooks_mkdir_p "${shared_root%/}/lib"
   maybe_run "copy runner to ${runner_target}" githooks_copy_file "${SCRIPT_DIR}/_runner.sh" "${runner_target}"
@@ -249,6 +252,14 @@ create_parts_dir() {
 }
 
 remove_runner_files() {
+  if [ "${shared_root_is_ephemeral:-0}" -eq 1 ]; then
+    if [ "${DRY_RUN}" -eq 1 ]; then
+      githooks_log_info "DRY-RUN: no managed runner artefacts to remove (ephemeral mode)"
+    else
+      githooks_log_info "no managed runner artefacts removed (ephemeral mode uses .git/.githooks)"
+    fi
+    return 0
+  fi
   runner_source="${SCRIPT_DIR%/}/_runner.sh"
   lib_source="${SCRIPT_DIR%/}/lib/common.sh"
   watch_lib_source="${SCRIPT_DIR%/}/lib/watch-configured-actions.sh"
@@ -644,14 +655,14 @@ stage_warn_legacy_watch_config() {
     return 0
   fi
   config_hint=$1
-  legacy_root="${shared_root%/}"
+  legacy_versioned_root="$(githooks_repo_top)/.githooks"
   for legacy in \
-    "${legacy_root}/watch-configured-actions.yml" \
-    "${legacy_root}/watch-configured-actions.yaml" \
-    "${legacy_root}/watch-configured-actions.json" \
-    "${legacy_root}/watch-config.yml" \
-    "${legacy_root}/watch-config.yaml" \
-    "${legacy_root}/watch-config.json"; do
+    "${legacy_versioned_root}/watch-configured-actions.yml" \
+    "${legacy_versioned_root}/watch-configured-actions.yaml" \
+    "${legacy_versioned_root}/watch-configured-actions.json" \
+    "${legacy_versioned_root}/watch-config.yml" \
+    "${legacy_versioned_root}/watch-config.yaml" \
+    "${legacy_versioned_root}/watch-config.json"; do
     if [ -f "${legacy}" ]; then
       githooks_log_warn "watch-configured-actions example: legacy config detected at ${legacy}; migrate to ${config_hint}"
       STAGE_WATCH_CONFIG_WARNED=1
@@ -952,6 +963,9 @@ stage_name_allowed() {
 }
 
 stage_ensure_runner() {
+  if [ "${shared_root_is_ephemeral:-0}" -eq 1 ]; then
+    return 0
+  fi
   if [ "${STAGE_RUNNER_READY}" -eq 0 ]; then
     install_runner
     STAGE_RUNNER_READY=1
@@ -1936,6 +1950,11 @@ config_set() {
 
 shared_root=$(githooks_shared_root)
 hooks_root=$(githooks_hooks_root)
+shared_root_is_ephemeral=0
+shared_repo_git_dir=$(githooks_repo_git_dir)
+if [ "${shared_root}" = "${shared_repo_git_dir%/}/.githooks/parts" ]; then
+  shared_root_is_ephemeral=1
+fi
 runner_target="${shared_root%/}/_runner.sh"
 lib_target="${shared_root%/}/lib/common.sh"
 watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
