@@ -116,6 +116,16 @@ test_update_refreshes_standard_install() {
     fi
   fi
 
+  src_config="${REPO_ROOT}/examples/config/watch-configured-actions.yml"
+  if [ "$rc" -eq 0 ] && [ -f "${config_path}" ]; then
+    outdated_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
+  fi
+  if [ "$rc" -eq 0 ] && [ -f "${src_config}" ]; then
+    src_cfg_cksum=$(cksum "${src_config}" | awk '{print $1}')
+  else
+    src_cfg_cksum=''
+  fi
+
   if [ "$rc" -eq 0 ]; then
     printf '#!/bin/sh\n# custom part\n' >"${custom_path}"
     chmod 755 "${custom_path}"
@@ -137,12 +147,10 @@ test_update_refreshes_standard_install() {
     fi
   fi
 
-  src_config="${REPO_ROOT}/examples/config/watch-configured-actions.yml"
-  if [ "$rc" -eq 0 ] && [ -f "${src_config}" ]; then
-    src_cfg_cksum=$(cksum "${src_config}" | awk '{print $1}')
+  if [ "$rc" -eq 0 ]; then
     dest_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
-    if [ "${src_cfg_cksum}" != "${dest_cfg_cksum}" ]; then
-      TEST_FAILURE_DIAG='config file did not refresh to match source after update'
+    if [ "${dest_cfg_cksum}" != "${outdated_cfg_cksum}" ]; then
+      TEST_FAILURE_DIAG='config file unexpectedly refreshed without opt-in'
       rc=1
     fi
   fi
@@ -151,6 +159,27 @@ test_update_refreshes_standard_install() {
     new_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
     if [ "${custom_cksum}" != "${new_custom_cksum}" ]; then
       TEST_FAILURE_DIAG='custom staged script was unexpectedly modified'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ] && ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" update --refresh-configs; then
+    TEST_FAILURE_DIAG='update --refresh-configs command failed for standard mode'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -n "${src_cfg_cksum}" ]; then
+    refreshed_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
+    if [ "${refreshed_cfg_cksum}" != "${src_cfg_cksum}" ]; then
+      TEST_FAILURE_DIAG='config file did not refresh after opting in'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    final_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
+    if [ "${custom_cksum}" != "${final_custom_cksum}" ]; then
+      TEST_FAILURE_DIAG='custom staged script changed after config refresh'
       rc=1
     fi
   fi
@@ -207,6 +236,16 @@ test_update_refreshes_ephemeral_install() {
     fi
   fi
 
+  src_config="${REPO_ROOT}/examples/config/watch-configured-actions.yml"
+  if [ "$rc" -eq 0 ] && [ -f "${config_path}" ]; then
+    stale_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
+  fi
+  if [ "$rc" -eq 0 ] && [ -f "${src_config}" ]; then
+    src_cfg_cksum=$(cksum "${src_config}" | awk '{print $1}')
+  else
+    src_cfg_cksum=''
+  fi
+
   if [ "$rc" -eq 0 ]; then
     printf '#!/bin/sh\n# custom ephemeral part\n' >"${custom_path}"
     chmod 755 "${custom_path}"
@@ -240,12 +279,10 @@ test_update_refreshes_ephemeral_install() {
     fi
   fi
 
-  src_config="${REPO_ROOT}/examples/config/watch-configured-actions.yml"
-  if [ "$rc" -eq 0 ] && [ -f "${src_config}" ]; then
-    src_cfg_cksum=$(cksum "${src_config}" | awk '{print $1}')
+  if [ "$rc" -eq 0 ]; then
     dest_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
-    if [ "${src_cfg_cksum}" != "${dest_cfg_cksum}" ]; then
-      TEST_FAILURE_DIAG='ephemeral config did not refresh to match source'
+    if [ "${dest_cfg_cksum}" != "${stale_cfg_cksum}" ]; then
+      TEST_FAILURE_DIAG='ephemeral config unexpectedly refreshed without opt-in'
       rc=1
     fi
   fi
@@ -254,6 +291,28 @@ test_update_refreshes_ephemeral_install() {
     new_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
     if [ "${custom_cksum}" != "${new_custom_cksum}" ]; then
       TEST_FAILURE_DIAG='custom ephemeral script was unexpectedly modified'
+      rc=1
+    fi
+  fi
+
+  update_refresh_log="${parsed_repo}/update-ephemeral-refresh.log"
+  if [ "$rc" -eq 0 ] && ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" update --mode ephemeral --refresh-configs >"${update_refresh_log}" 2>&1; then
+    TEST_FAILURE_DIAG='update --mode ephemeral --refresh-configs failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -n "${src_cfg_cksum}" ]; then
+    refreshed_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
+    if [ "${refreshed_cfg_cksum}" != "${src_cfg_cksum}" ]; then
+      TEST_FAILURE_DIAG='ephemeral config did not refresh after opting in'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    final_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
+    if [ "${custom_cksum}" != "${final_custom_cksum}" ]; then
+      TEST_FAILURE_DIAG='custom ephemeral script changed after config refresh'
       rc=1
     fi
   fi

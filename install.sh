@@ -150,6 +150,8 @@ UPDATE_PARTS_REFRESHED=0
 UPDATE_PARTS_SKIPPED_IDENTICAL=0
 UPDATE_PARTS_SOURCE_MISSING=0
 UPDATE_SUPPORT_REFRESHED=0
+UPDATE_REFRESH_CONFIGS=0
+UPDATE_CONFIG_SPECS="watch-configured-actions|examples/config/watch-configured-actions.yml|config/watch-configured-actions.yml|644"
 
 parse_hook_list() {
   if [ "$#" -ne 1 ]; then
@@ -1381,6 +1383,14 @@ OPTIONS
         Overwrite staged hook parts even when their contents already match the
         source.
 
+    --refresh-configs
+        Opt-in to refreshing managed configuration files registered with the
+        toolkit (for example, `config/watch-configured-actions.yml`).
+
+    --no-refresh-configs
+        Explicitly disable configuration refresh, even if enabled earlier in
+        the argument list.
+
     -h, --help | help
         Display this manual entry.
 
@@ -2156,21 +2166,56 @@ update_refresh_parts() {
   update_refresh_parts_for_root "$(githooks_shared_root)"
 }
 
-update_refresh_watch_config() {
-  _update_config_src="${SCRIPT_DIR%/}/examples/config/watch-configured-actions.yml"
-  if [ ! -f "${_update_config_src}" ]; then
+update_refresh_support_configs() {
+  if [ "${UPDATE_REFRESH_CONFIGS}" -ne 1 ]; then
     return 0
   fi
-  _update_hooks_root=$(githooks_hooks_root)
-  _update_config_dest="${_update_hooks_root%/}/config/watch-configured-actions.yml"
-  if [ ! -f "${_update_config_dest}" ]; then
+  if [ -z "${UPDATE_CONFIG_SPECS}" ]; then
     return 0
   fi
-  if stage_files_identical "${_update_config_src}" "${_update_config_dest}"; then
-    return 0
-  fi
-  update_replace_file "${_update_config_src}" "${_update_config_dest}" 644 "config/watch-configured-actions.yml"
-  UPDATE_SUPPORT_REFRESHED=$((UPDATE_SUPPORT_REFRESHED + 1))
+  _update_support_specs=$(printf '%s\n' "${UPDATE_CONFIG_SPECS}")
+  _update_support_saved_ifs=${IFS}
+  _update_support_newline=$(printf '\n_')
+  IFS=${_update_support_newline%_}
+  set -f
+  for _update_support_spec in ${_update_support_specs}; do
+    if [ -z "${_update_support_spec}" ]; then
+      continue
+    fi
+    _update_support_spec_saved_ifs=${IFS}
+    IFS='|'
+    set -- ${_update_support_spec}
+    IFS=${_update_support_spec_saved_ifs}
+    if [ "$#" -lt 3 ]; then
+      continue
+    fi
+    _update_support_name=$1
+    _update_support_src_rel=$2
+    _update_support_dest_rel=$3
+    _update_support_mode=${4:-644}
+    if [ -z "${_update_support_src_rel}" ] || [ -z "${_update_support_dest_rel}" ]; then
+      continue
+    fi
+    _update_support_src="${SCRIPT_DIR%/}/${_update_support_src_rel}"
+    if [ ! -f "${_update_support_src}" ]; then
+      githooks_log_info "update skip ${_update_support_name:-config}: source not found"
+      continue
+    fi
+    _update_support_root=$(githooks_hooks_root)
+    _update_support_dest="${_update_support_root%/}/${_update_support_dest_rel}"
+    if [ ! -f "${_update_support_dest}" ]; then
+      githooks_log_info "update skip ${_update_support_name:-config}: destination missing"
+      continue
+    fi
+    if [ "${FORCE}" -eq 0 ] && stage_files_identical "${_update_support_src}" "${_update_support_dest}"; then
+      continue
+    fi
+    if update_replace_file "${_update_support_src}" "${_update_support_dest}" "${_update_support_mode}" "${_update_support_dest_rel}"; then
+      UPDATE_SUPPORT_REFRESHED=$((UPDATE_SUPPORT_REFRESHED + 1))
+    fi
+  done
+  set +f
+  IFS=${_update_support_saved_ifs}
 }
 
 update_count_hooks() {
@@ -2390,6 +2435,7 @@ cmd_install_ephemeral() {
 }
 
 cmd_update_ephemeral() {
+  UPDATE_REFRESH_CONFIGS=0
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --mode)
@@ -2409,6 +2455,14 @@ cmd_update_ephemeral() {
         ;;
       --force|-f)
         FORCE=1
+        shift
+        ;;
+      --refresh-configs)
+        UPDATE_REFRESH_CONFIGS=1
+        shift
+        ;;
+      --no-refresh-configs)
+        UPDATE_REFRESH_CONFIGS=0
         shift
         ;;
       -h|--help|help)
@@ -2465,11 +2519,12 @@ cmd_update_ephemeral() {
 ${EPHEMERAL_ROOT_SERIAL}
 EOF
   fi
-  update_refresh_watch_config
+  update_refresh_support_configs
   update_log_summary
 }
 
 cmd_update() {
+  UPDATE_REFRESH_CONFIGS=0
   UPDATE_RESOLVED_MODE=$(githooks_cli_resolve_mode "${CLI_INSTALL_MODE}" "$@")
   update_current_shared_root=$(githooks_shared_root)
   update_current_hooks_root=$(githooks_hooks_root)
@@ -2518,6 +2573,14 @@ cmd_update() {
         FORCE=1
         shift
         ;;
+      --refresh-configs)
+        UPDATE_REFRESH_CONFIGS=1
+        shift
+        ;;
+      --no-refresh-configs)
+        UPDATE_REFRESH_CONFIGS=0
+        shift
+        ;;
       -h|--help|help)
         print_update_usage
         return 0
@@ -2560,7 +2623,7 @@ cmd_update() {
   fi
 
   update_refresh_parts
-  update_refresh_watch_config
+  update_refresh_support_configs
   update_log_summary
 }
 
