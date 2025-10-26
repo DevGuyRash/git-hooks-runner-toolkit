@@ -77,21 +77,44 @@ watch_actions_trim() {
   printf '%s' "$1" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//'
 }
 
+watch_actions_unescape_newlines() {
+  if [ "$#" -ne 1 ]; then
+    return 0
+  fi
+  printf '%s' "$1" | awk 'BEGIN{RS=""; ORS=""} {gsub(/\\n/, "\n"); print}'
+}
+
 watch_actions_pattern_to_regex() {
   if [ "$#" -ne 1 ]; then
     return 1
   fi
   printf '%s\n' "$1" | awk '
+    function escape_char(ch) {
+      if (ch ~ /[.^$+(){}[\]|\\]/) {
+        return "\\" ch
+      }
+      return ch
+    }
     {
+      pattern=$0
+      len=length(pattern)
       regex="^"
-      len=length($0)
       i=1
       while (i <= len) {
-        c=substr($0, i, 1)
+        c=substr(pattern, i, 1)
         if (c == "*") {
-          if (i < len && substr($0, i + 1, 1) == "*") {
-            regex=regex ".*"
+          if (i < len && substr(pattern, i + 1, 1) == "*") {
             i+=2
+            while (i <= len && substr(pattern, i, 1) == "*") {
+              i+=1
+            }
+            if (i <= len && substr(pattern, i, 1) == "/") {
+              regex=regex "([^/]+/)*"
+              i+=1
+            }
+            else {
+              regex=regex ".*"
+            }
             continue
           }
           regex=regex "[^/]*"
@@ -103,12 +126,12 @@ watch_actions_pattern_to_regex() {
           i+=1
           continue
         }
-        if (c ~ /[.^$+(){}[\]|\\]/) {
-          regex=regex "\\" c
+        if (c == "/") {
+          regex=regex "/"
           i+=1
           continue
         }
-        regex=regex c
+        regex=regex escape_char(c)
         i+=1
       }
       regex=regex "$"
@@ -570,6 +593,7 @@ watch_actions_execute_rules() {
     for command_entry in "$@"; do
       command_entry=$(watch_actions_trim "${command_entry}")
       [ -n "${command_entry}" ] || continue
+      command_entry=$(watch_actions_unescape_newlines "${command_entry}")
       githooks_log_info "watch-configured-actions example: executing (${rule_name}) -> ${command_entry}"
     if sh -c "${command_entry}"; then
       :

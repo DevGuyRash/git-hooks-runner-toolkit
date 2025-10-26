@@ -82,11 +82,16 @@ example_test_watch_configured_actions_pre_commit_runs_with_central_config() {
 
   if [ "${rc}" -eq 0 ]; then
     cat <<'YAML' >"${config_path}"
-- name: staged-json
+- name: staged-package
   patterns:
-    - "src/*.json"
+    - "package.json"
   commands:
-    - "printf 'json-check\n' >> precommit.log"
+    - "printf 'package-hit\n' >> precommit.log"
+- name: staged-src-tree
+  patterns:
+    - "**/src/**/*"
+  commands:
+    - "printf 'src-hit\n' >> precommit.log"
 YAML
   fi
 
@@ -99,9 +104,10 @@ YAML
 
   if [ "${rc}" -eq 0 ]; then
     mkdir -p "${repo_dir}/src"
-    printf '{"alpha":1}\n' >"${repo_dir}/src/config.json"
-    if ! ghr_git "${repo_dir}" "${home_dir}" add src/config.json; then
-      TEST_FAILURE_DIAG='failed to stage config.json'
+    printf '{"name":"example"}\n' >"${repo_dir}/package.json"
+    printf '// generated test fixture\n' >"${repo_dir}/src/index.ts"
+    if ! ghr_git "${repo_dir}" "${home_dir}" add package.json src/index.ts; then
+      TEST_FAILURE_DIAG='failed to stage package assets'
       rc=1
     fi
   fi
@@ -123,13 +129,23 @@ YAML
       TEST_FAILURE_DIAG='precommit log not created'
       rc=1
     else
-      case $(ghr_read_or_empty "${log_file}") in
-        *'json-check'*) : ;;
+      log_contents=$(ghr_read_or_empty "${log_file}")
+      case "${log_contents}" in
+        *'package-hit'*) : ;;
         *)
-          TEST_FAILURE_DIAG='precommit log missing expected entry'
+          TEST_FAILURE_DIAG='precommit log missing package-hit entry'
           rc=1
           ;;
       esac
+      if [ "${rc}" -eq 0 ]; then
+        case "${log_contents}" in
+          *'src-hit'*) : ;;
+          *)
+            TEST_FAILURE_DIAG='precommit log missing src-hit entry'
+            rc=1
+            ;;
+        esac
+      fi
     fi
   fi
 
@@ -145,8 +161,14 @@ YAML
       esac
       if [ "${rc}" -eq 0 ]; then
         case "${mark_contents}" in
-          *'trigger=staged-json:'*) : ;;
-          *) TEST_FAILURE_DIAG='mark file missing staged-json trigger'; rc=1 ;;
+          *'trigger=staged-package:'*) : ;;
+          *) TEST_FAILURE_DIAG='mark file missing staged-package trigger'; rc=1 ;;
+        esac
+      fi
+      if [ "${rc}" -eq 0 ]; then
+        case "${mark_contents}" in
+          *'trigger=staged-src-tree:'*) : ;;
+          *) TEST_FAILURE_DIAG='mark file missing staged-src-tree trigger'; rc=1 ;;
         esac
       fi
     fi
@@ -157,7 +179,7 @@ YAML
   return "${rc}"
 }
 
-example_test_watch_configured_actions_copies_config_ephemeral() {
+example_test_watch_configured_actions_pre_commit_runs_ephemeral() {
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -228,13 +250,94 @@ example_test_watch_configured_actions_copies_config_ephemeral() {
     fi
   fi
 
+  if [ "${rc}" -eq 0 ]; then
+    cat <<'YAML' >"${config_path}"
+- name: staged-package
+  patterns:
+    - "package.json"
+  commands:
+    - "printf 'package-hit\n' >> precommit.log"
+- name: staged-src-tree
+  patterns:
+    - "**/src/**/*"
+  commands:
+    - "printf 'src-hit\n' >> precommit.log"
+YAML
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    mkdir -p "${repo_dir}/src"
+    printf '{"name":"example"}\n' >"${repo_dir}/package.json"
+    printf '// generated test fixture\n' >"${repo_dir}/src/index.ts"
+    if ! ghr_git "${repo_dir}" "${home_dir}" add package.json src/index.ts; then
+      TEST_FAILURE_DIAG='failed to stage package assets in ephemeral mode'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_in_repo "${repo_dir}" "${home_dir}" \
+      GITHOOKS_WATCH_MARK_FILE=.git/watch-config.mark \
+      git commit -q -m 'feat: trigger pre-commit in ephemeral mode'; then
+      TEST_FAILURE_DIAG='git commit failed in ephemeral mode'
+      rc=1
+    fi
+  fi
+
+  log_file="${repo_dir}/precommit.log"
+  mark_file="${repo_dir}/.git/watch-config.mark"
+
+  if [ "${rc}" -eq 0 ]; then
+    if [ ! -f "${log_file}" ]; then
+      TEST_FAILURE_DIAG='precommit log not created in ephemeral mode'
+      rc=1
+    else
+      log_contents=$(ghr_read_or_empty "${log_file}")
+      case "${log_contents}" in
+        *'package-hit'*) : ;;
+        *) TEST_FAILURE_DIAG='ephemeral log missing package-hit entry'; rc=1 ;;
+      esac
+      if [ "${rc}" -eq 0 ]; then
+        case "${log_contents}" in
+          *'src-hit'*) : ;;
+          *) TEST_FAILURE_DIAG='ephemeral log missing src-hit entry'; rc=1 ;;
+        esac
+      fi
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if [ ! -f "${mark_file}" ]; then
+      TEST_FAILURE_DIAG='mark file not created for ephemeral pre-commit'
+      rc=1
+    else
+      mark_contents=$(ghr_read_or_empty "${mark_file}")
+      case "${mark_contents}" in
+        *'hook=pre-commit'*) : ;;
+        *) TEST_FAILURE_DIAG='ephemeral mark missing hook entry'; rc=1 ;;
+      esac
+      if [ "${rc}" -eq 0 ]; then
+        case "${mark_contents}" in
+          *'trigger=staged-package:'*) : ;;
+          *) TEST_FAILURE_DIAG='ephemeral mark missing staged-package trigger'; rc=1 ;;
+        esac
+      fi
+      if [ "${rc}" -eq 0 ]; then
+        case "${mark_contents}" in
+          *'trigger=staged-src-tree:'*) : ;;
+          *) TEST_FAILURE_DIAG='ephemeral mark missing staged-src-tree trigger'; rc=1 ;;
+        esac
+      fi
+    fi
+  fi
+
   trap - EXIT
   ghr_cleanup_sandbox "${base_dir}"
   return "${rc}"
 }
 
 example_register 'watch-configured-actions pre-commit runs with central config' example_test_watch_configured_actions_pre_commit_runs_with_central_config
-example_register 'watch-configured-actions installer copies config in ephemeral mode' example_test_watch_configured_actions_copies_config_ephemeral
+example_register 'watch-configured-actions pre-commit executes in ephemeral mode' example_test_watch_configured_actions_pre_commit_runs_ephemeral
 
 if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   if example_run_self; then
