@@ -5,7 +5,13 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd -P)
-LIB_PATH="${SCRIPT_DIR}/../lib/common.sh"
+PARENT_DIR=$(dirname "${SCRIPT_DIR}")
+if [ "$(basename "${PARENT_DIR}")" = "parts" ]; then
+  ROOT_DIR=$(dirname "${PARENT_DIR}")
+else
+  ROOT_DIR="${PARENT_DIR}"
+fi
+LIB_PATH="${ROOT_DIR}/lib/common.sh"
 if [ ! -f "${LIB_PATH}" ]; then
   printf '[hook-runner] ERROR: git-crypt example missing common library at %s\n' "${LIB_PATH}" >&2
   exit 1

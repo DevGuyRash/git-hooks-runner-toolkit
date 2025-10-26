@@ -6,8 +6,15 @@
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd -P)
-LIB_COMMON="${SCRIPT_DIR}/../lib/common.sh"
-LIB_WATCH="${SCRIPT_DIR}/../lib/watch-configured-actions.sh"
+PARENT_DIR=$(dirname "${SCRIPT_DIR}")
+if [ "$(basename "${PARENT_DIR}")" = "parts" ]; then
+  ROOT_DIR=$(dirname "${PARENT_DIR}")
+else
+  ROOT_DIR="${PARENT_DIR}"
+fi
+LIB_DIR="${ROOT_DIR}/lib"
+LIB_COMMON="${LIB_DIR}/common.sh"
+LIB_WATCH="${LIB_DIR}/watch-configured-actions.sh"
 
 if [ ! -f "${LIB_COMMON}" ] || [ ! -f "${LIB_WATCH}" ]; then
   printf '[hook-runner] ERROR: watch-configured-actions helper missing required libraries\n' >&2
