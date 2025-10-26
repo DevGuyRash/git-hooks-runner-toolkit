@@ -173,7 +173,8 @@ ephemeral_overlay_roots_serialized() {
   _ephemeral_roots=$(printf '%b' "${_ephemeral_roots}")
   _ephemeral_serial=""
   _ephemeral_saved_ifs=${IFS}
-  IFS="\n"
+  _ephemeral_newline=$(printf '\n_')
+  IFS=${_ephemeral_newline%_}
   set -f
   for _ephemeral_entry in ${_ephemeral_roots}; do
     if [ -z "${_ephemeral_entry}" ]; then

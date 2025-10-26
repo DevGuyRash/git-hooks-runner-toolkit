@@ -331,6 +331,17 @@ For a high-level summary of hooks, stubs, and part counts, run:
 
 All of these commands accept `-n/--dry-run` so you can preview actions before making changes.
 
+### Refreshing toolkit assets
+
+After pulling new versions of the toolkit (or tweaking example scripts locally), run the `update` subcommand to rewrite the shared runner, refresh managed stubs, and restage any example-based parts in place:
+
+```bash
+.githooks/install.sh update            # standard installs
+.githooks/install.sh update --mode ephemeral
+```
+
+Pass `--force` if you want to overwrite staged parts even when their contents already match the source.
+
 ### Inspecting and Updating Configuration
 
 Use `config show` to review derived paths (including any Git `core.hooksPath` overrides):
@@ -354,6 +365,7 @@ The `install.sh` script provides several commands to customize its behavior:
 | Command                                      | Description                                                                                                                                                               |
 | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `install`                                    | Install the toolkit and create hook stubs. Supports `--hooks`, `--all-hooks`, `--force`, and `--mode ephemeral` (installs the runner under `.git/.githooks/`; see below). |
+| `update`                                     | Refresh runner assets, managed stubs, and staged parts. Supports `--force`, `--dry-run`, and `--mode ephemeral` to target `.git/.githooks/` installs. |
 | `stage add SOURCE`                           | Copy hook parts from a source directory. Supports `--hook` (alias: `--for-hook`), `--name` (globs, extension optional), `--force`, and `--dry-run`.                       |
 | `stage unstage SOURCE`                       | Remove staged hook parts that match a source directory. Supports `--hook`, `--name`, and `--dry-run`.                                                                     |
 | `stage remove HOOK [--name PART \| --all]`   | Remove one part by name (extension optional) or purge all parts for a hook.                                                                                               |
