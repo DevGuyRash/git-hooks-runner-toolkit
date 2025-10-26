@@ -198,6 +198,34 @@ examples; mix and match as needed.
     - "pnpm build --filter web"
 ```
 
+### Node Application (npm ci + lint + build)
+
+```yaml
+- name: npm verify & build
+  patterns:
+    - "package-lock.json"
+    - "package.json"
+    - "src/**/*.{ts,tsx,js,jsx}"
+  commands:
+    - "npm ci"
+    - "npm run lint"
+    - "npm run build"
+```
+
+### Binary Install After npm Build
+
+```yaml
+- name: npm build & install binary
+  patterns:
+    - "apps/cli/package.json"
+    - "apps/cli/package-lock.json"
+    - "apps/cli/src/**/*"
+  commands:
+    - "cd apps/cli && npm ci"
+    - "cd apps/cli && npm run build"
+    - "install -Dm755 apps/cli/dist/mycli ~/.local/bin/mycli"
+```
+
 ### Java & Gradle
 
 ```yaml
