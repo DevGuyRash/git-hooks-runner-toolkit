@@ -93,12 +93,26 @@ test_update_refreshes_standard_install() {
     rc=1
   fi
 
+  if [ "$rc" -eq 0 ] && ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit --name sample-generated-config; then
+    TEST_FAILURE_DIAG='stage add sample-generated-config failed'
+    rc=1
+  fi
+
   part_path="${parsed_repo}/.githooks/post-merge.d/watch-configured-actions.sh"
   config_path="${parsed_repo}/.git/hooks/config/watch-configured-actions.yml"
   custom_path="${parsed_repo}/.githooks/post-merge.d/custom-script.sh"
+  gen_part_path="${parsed_repo}/.githooks/pre-commit.d/sample-generated-config.sh"
+  gen_config_path="${parsed_repo}/.git/hooks/config/generated/sample-generated-config.yml"
+  gen_cfg_canonical_cksum=''
+  gen_cfg_stale_cksum=''
 
   if [ "$rc" -eq 0 ] && [ ! -f "$part_path" ]; then
     TEST_FAILURE_DIAG='staged part missing after stage add'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ] && [ ! -f "${gen_part_path}" ]; then
+    TEST_FAILURE_DIAG='sample-generated-config part missing after stage add'
     rc=1
   fi
 
@@ -113,6 +127,17 @@ test_update_refreshes_standard_install() {
       rc=1
     else
       printf 'outdated: %s\n' "$(date -u '+%s')" >"${config_path}"
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if [ ! -f "${gen_config_path}" ]; then
+      TEST_FAILURE_DIAG='sample-generated-config config missing after stage'
+      rc=1
+    else
+      gen_cfg_canonical_cksum=$(cksum "${gen_config_path}" | awk '{print $1}')
+      printf '# stale generated config\n' >"${gen_config_path}"
+      gen_cfg_stale_cksum=$(cksum "${gen_config_path}" | awk '{print $1}')
     fi
   fi
 
@@ -155,6 +180,14 @@ test_update_refreshes_standard_install() {
     fi
   fi
 
+  if [ "$rc" -eq 0 ] && [ -n "${gen_cfg_stale_cksum}" ]; then
+    gen_cfg_after_update=$(cksum "${gen_config_path}" | awk '{print $1}')
+    if [ "${gen_cfg_after_update}" != "${gen_cfg_stale_cksum}" ]; then
+      TEST_FAILURE_DIAG='generated config unexpectedly refreshed without opt-in'
+      rc=1
+    fi
+  fi
+
   if [ "$rc" -eq 0 ]; then
     new_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
     if [ "${custom_cksum}" != "${new_custom_cksum}" ]; then
@@ -172,6 +205,14 @@ test_update_refreshes_standard_install() {
     refreshed_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
     if [ "${refreshed_cfg_cksum}" != "${src_cfg_cksum}" ]; then
       TEST_FAILURE_DIAG='config file did not refresh after opting in'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -n "${gen_cfg_canonical_cksum}" ]; then
+    gen_cfg_after_refresh=$(cksum "${gen_config_path}" | awk '{print $1}')
+    if [ "${gen_cfg_after_refresh}" != "${gen_cfg_canonical_cksum}" ]; then
+      TEST_FAILURE_DIAG='generated config did not regenerate after opting in'
       rc=1
     fi
   fi
@@ -212,13 +253,27 @@ test_update_refreshes_ephemeral_install() {
     rc=1
   fi
 
+  if [ "$rc" -eq 0 ] && ! ghr_in_repo "$parsed_repo" "$parsed_home" "$INSTALLER" stage add examples --hook pre-commit --name sample-generated-config; then
+    TEST_FAILURE_DIAG='stage add sample-generated-config failed under ephemeral mode'
+    rc=1
+  fi
+
   parts_root="${parsed_repo}/.git/.githooks/parts"
   part_path="${parts_root}/post-merge.d/watch-configured-actions.sh"
   config_path="${parsed_repo}/.git/.githooks/config/watch-configured-actions.yml"
   custom_path="${parts_root}/post-merge.d/custom-ephemeral.sh"
+  gen_part_path="${parts_root}/pre-commit.d/sample-generated-config.sh"
+  gen_config_path="${parsed_repo}/.git/.githooks/config/generated/sample-generated-config.yml"
+  gen_cfg_canonical_cksum=''
+  gen_cfg_stale_cksum=''
 
   if [ "$rc" -eq 0 ] && [ ! -f "${part_path}" ]; then
     TEST_FAILURE_DIAG='staged part missing in Ephemeral Mode after stage'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ] && [ ! -f "${gen_part_path}" ]; then
+    TEST_FAILURE_DIAG='sample-generated-config part missing in Ephemeral Mode after stage'
     rc=1
   fi
 
@@ -233,6 +288,17 @@ test_update_refreshes_ephemeral_install() {
       rc=1
     else
       printf 'stale-config: %s\n' "$(date -u '+%s')" >"${config_path}"
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if [ ! -f "${gen_config_path}" ]; then
+      TEST_FAILURE_DIAG='sample-generated-config config missing in Ephemeral Mode after stage'
+      rc=1
+    else
+      gen_cfg_canonical_cksum=$(cksum "${gen_config_path}" | awk '{print $1}')
+      printf '# stale generated config\n' >"${gen_config_path}"
+      gen_cfg_stale_cksum=$(cksum "${gen_config_path}" | awk '{print $1}')
     fi
   fi
 
@@ -287,6 +353,14 @@ test_update_refreshes_ephemeral_install() {
     fi
   fi
 
+  if [ "$rc" -eq 0 ] && [ -n "${gen_cfg_stale_cksum}" ]; then
+    gen_cfg_after_update=$(cksum "${gen_config_path}" | awk '{print $1}')
+    if [ "${gen_cfg_after_update}" != "${gen_cfg_stale_cksum}" ]; then
+      TEST_FAILURE_DIAG='generated config unexpectedly refreshed without opt-in in Ephemeral Mode'
+      rc=1
+    fi
+  fi
+
   if [ "$rc" -eq 0 ]; then
     new_custom_cksum=$(cksum "${custom_path}" | awk '{print $1}')
     if [ "${custom_cksum}" != "${new_custom_cksum}" ]; then
@@ -305,6 +379,14 @@ test_update_refreshes_ephemeral_install() {
     refreshed_cfg_cksum=$(cksum "${config_path}" | awk '{print $1}')
     if [ "${refreshed_cfg_cksum}" != "${src_cfg_cksum}" ]; then
       TEST_FAILURE_DIAG='ephemeral config did not refresh after opting in'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ] && [ -n "${gen_cfg_canonical_cksum}" ]; then
+    gen_cfg_after_refresh=$(cksum "${gen_config_path}" | awk '{print $1}')
+    if [ "${gen_cfg_after_refresh}" != "${gen_cfg_canonical_cksum}" ]; then
+      TEST_FAILURE_DIAG='generated config did not regenerate after opting in in Ephemeral Mode'
       rc=1
     fi
   fi
