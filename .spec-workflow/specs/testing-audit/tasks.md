@@ -29,7 +29,7 @@
   - _Requirements: 2.2, 3.3_
   - _Prompt: Implement the task for spec testing-audit, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Test Reporting Specialist | Task: Build report.sh to consume matrix NDJSON, produce JSON and text summaries categorising issues (log-truncation, flag-gap, coverage-gap, alias-divergence) per requirements 2.2 and 3.3, and wire outputs into version-controlled fixtures | Restrictions: Prefer POSIX shell with optional jq fallback, ensure outputs deterministic for CI comparisons, document regen command in script header | _Leverage: tests/audit/cli_matrix.sh, tests/audit/cli_help.bats | _Requirements: 2.2, 3.3 | Success: Reports generate without manual editing, CI diff highlights new failures, summaries clearly map to requirements_
 
-- [ ] 5. Harden test harness utilities for observability
+- [x] 5. Harden test harness utilities for observability
   - Files: tests/helpers/git_repo.sh; tests/lib/git_test_helpers.sh; tests/helpers/assertions.sh
   - Introduce utilities for capturing overlay logs, manifest snapshots, and environment diagnostics to reduce flakiness.
   - _Leverage: existing helper functions; lib/ephemeral_overlay.sh_
