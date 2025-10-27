@@ -18,7 +18,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${example_source}")" && pwd)
 
 example_tests_init
 
-example_test_git_crypt_enforce() {
+example_git_crypt_enforce_run() {
+  mode=$1
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -40,6 +41,8 @@ example_test_git_crypt_enforce() {
 
   rc=0
 
+  parts_dir=''
+
   if [ "$rc" -eq 0 ]; then
     if ! ghr_init_repo "$repo" "$home"; then
       TEST_FAILURE_DIAG='git init failed'
@@ -54,20 +57,40 @@ example_test_git_crypt_enforce() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'pre-commit'; then
-      TEST_FAILURE_DIAG='runner install failed'
+    if [ "$mode" = 'ephemeral' ]; then
+      if ! ghr_in_repo "$repo" "$home" "$INSTALLER" install --mode ephemeral --hooks pre-commit; then
+        TEST_FAILURE_DIAG='ephemeral install failed'
+        rc=1
+      else
+        parts_dir="$repo/.git/.githooks/parts/pre-commit.d"
+      fi
+    else
+      if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'pre-commit'; then
+        TEST_FAILURE_DIAG='runner install failed'
+        rc=1
+      else
+        parts_dir="$repo/.githooks/pre-commit.d"
+      fi
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$repo" "$home" "$INSTALLER" stage add examples --hook pre-commit --name git-crypt-enforce; then
+      TEST_FAILURE_DIAG='stage add failed'
       rc=1
     fi
   fi
 
   if [ "$rc" -eq 0 ]; then
-    parts_dir="$repo/.githooks/pre-commit.d"
-    mkdir -p "$parts_dir"
-    if ! cp "$EXAMPLES_DIR/git-crypt-enforce.sh" "$parts_dir/10-git-crypt-enforce.sh"; then
-      TEST_FAILURE_DIAG='failed to copy git-crypt example'
+    if [ ! -d "$parts_dir" ]; then
+      TEST_FAILURE_DIAG='git-crypt parts directory missing after staging'
       rc=1
     else
-      chmod 755 "$parts_dir/10-git-crypt-enforce.sh"
+      part_path=$(find "$parts_dir" -maxdepth 1 -type f -name '*git-crypt-enforce*.sh' | head -n 1)
+      if [ -z "$part_path" ]; then
+        TEST_FAILURE_DIAG='git-crypt part not staged'
+        rc=1
+      fi
     fi
   fi
 
@@ -120,7 +143,16 @@ SH
   return "$rc"
 }
 
-example_register 'git-crypt enforcement blocks plaintext and allows encrypted blobs' example_test_git_crypt_enforce
+example_test_git_crypt_enforce_standard() {
+  example_git_crypt_enforce_run 'standard'
+}
+
+example_test_git_crypt_enforce_ephemeral() {
+  example_git_crypt_enforce_run 'ephemeral'
+}
+
+example_register 'git-crypt enforcement blocks plaintext and allows encrypted blobs' example_test_git_crypt_enforce_standard
+example_register 'git-crypt enforcement succeeds in ephemeral mode' example_test_git_crypt_enforce_ephemeral
 
 if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   if example_run_self; then

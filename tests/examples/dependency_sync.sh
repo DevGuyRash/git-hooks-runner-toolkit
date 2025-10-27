@@ -44,7 +44,8 @@ example_expect_log_contains() {
   esac
 }
 
-example_test_dependency_sync() {
+example_dependency_sync_run() {
+  mode=$1
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -66,6 +67,7 @@ example_test_dependency_sync() {
 
   rc=0
 
+  parts_dir=''
   if [ "$rc" -eq 0 ]; then
     if ! ghr_init_repo "$repo" "$home"; then
       TEST_FAILURE_DIAG='git init failed'
@@ -74,22 +76,49 @@ example_test_dependency_sync() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'post-merge'; then
-      TEST_FAILURE_DIAG='runner install failed'
+    if [ "$mode" = 'ephemeral' ]; then
+      if ! ghr_in_repo "$repo" "$home" "$INSTALLER" install --mode ephemeral --hooks post-merge; then
+        TEST_FAILURE_DIAG='ephemeral install failed'
+        rc=1
+      else
+        parts_dir="$repo/.git/.githooks/parts/post-merge.d"
+      fi
+    else
+      if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'post-merge'; then
+        TEST_FAILURE_DIAG='runner install failed'
+        rc=1
+      else
+        parts_dir="$repo/.githooks/post-merge.d"
+      fi
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$repo" "$home" "$INSTALLER" stage add examples --hook post-merge --name dependency-sync; then
+      TEST_FAILURE_DIAG='stage add failed'
       rc=1
     fi
   fi
 
   if [ "$rc" -eq 0 ]; then
-    base_branch=$(ghr_git "$repo" "$home" symbolic-ref --short HEAD)
-    parts_dir="$repo/.githooks/post-merge.d"
-    mkdir -p "$parts_dir"
-    if ! cp "$EXAMPLES_DIR/dependency-sync.sh" "$parts_dir/20-dependency-sync.sh"; then
-      TEST_FAILURE_DIAG='failed to copy dependency-sync example'
+    if [ ! -d "$parts_dir" ]; then
+      TEST_FAILURE_DIAG='hook parts directory missing after staging'
       rc=1
     else
-      chmod 755 "$parts_dir/20-dependency-sync.sh"
+      part_count=0
+      part_path=$(find "$parts_dir" -maxdepth 1 -type f -name '*dependency-sync*.sh' | head -n 1)
+      if [ -n "$part_path" ]; then
+        part_count=1
+      fi
+      if [ "$part_count" -eq 0 ]; then
+        TEST_FAILURE_DIAG='dependency-sync part not staged'
+        rc=1
+      fi
     fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    base_branch=$(ghr_git "$repo" "$home" symbolic-ref --short HEAD)
   fi
 
   if [ "$rc" -eq 0 ]; then
@@ -172,9 +201,23 @@ EOF
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_in_repo "$repo" "$home" PATH="$repo/bin:$PATH" GITHOOKS_DEPENDENCY_SYNC_MARK_FILE=".git/change.mark" git merge --no-ff feature -q -m 'merge feature'; then
+    if [ "$mode" = 'ephemeral' ]; then
+      if ! ghr_in_repo "$repo" "$home" \
+        PATH="$repo/bin:$PATH" \
+        GITHOOKS_EPHEMERAL_PRECEDENCE=ephemeral-first \
+        GITHOOKS_DEPENDENCY_SYNC_MARK_FILE=".git/change.mark" \
+        git merge --no-ff feature -q -m 'merge feature'; then
+        TEST_FAILURE_DIAG='git merge failed'
+        rc=1
+      fi
+    else
+      if ! ghr_in_repo "$repo" "$home" \
+        PATH="$repo/bin:$PATH" \
+        GITHOOKS_DEPENDENCY_SYNC_MARK_FILE=".git/change.mark" \
+        git merge --no-ff feature -q -m 'merge feature'; then
       TEST_FAILURE_DIAG='git merge failed'
       rc=1
+      fi
     fi
   fi
 
@@ -266,7 +309,16 @@ EOF
   return "$rc"
 }
 
-example_register 'dependency-sync example triggers installer and mark file' example_test_dependency_sync
+example_test_dependency_sync_standard() {
+  example_dependency_sync_run 'standard'
+}
+
+example_test_dependency_sync_ephemeral() {
+  example_dependency_sync_run 'ephemeral'
+}
+
+example_register 'dependency-sync example triggers installer and mark file' example_test_dependency_sync_standard
+example_register 'dependency-sync example executes in ephemeral mode' example_test_dependency_sync_ephemeral
 
 if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   if example_run_self; then

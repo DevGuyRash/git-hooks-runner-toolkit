@@ -18,7 +18,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "${example_source}")" && pwd)
 
 example_tests_init
 
-example_test_metadata_apply() {
+example_metadata_apply_run() {
+  mode=$1
   TEST_FAILURE_DIAG=''
   tuple=$(ghr_mk_sandbox) || {
     TEST_FAILURE_DIAG='failed to create sandbox'
@@ -40,6 +41,8 @@ example_test_metadata_apply() {
 
   rc=0
 
+  parts_dir=''
+
   if [ "$rc" -eq 0 ]; then
     if ! ghr_init_repo "$repo" "$home"; then
       TEST_FAILURE_DIAG='git init failed'
@@ -48,22 +51,45 @@ example_test_metadata_apply() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'post-merge'; then
-      TEST_FAILURE_DIAG='runner install failed'
+    if [ "$mode" = 'ephemeral' ]; then
+      if ! ghr_in_repo "$repo" "$home" "$INSTALLER" install --mode ephemeral --hooks post-merge; then
+        TEST_FAILURE_DIAG='ephemeral install failed'
+        rc=1
+      else
+        parts_dir="$repo/.git/.githooks/parts/post-merge.d"
+      fi
+    else
+      if ! ghr_install_runner "$repo" "$home" "$INSTALLER" 'post-merge'; then
+        TEST_FAILURE_DIAG='runner install failed'
+        rc=1
+      else
+        parts_dir="$repo/.githooks/post-merge.d"
+      fi
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! ghr_in_repo "$repo" "$home" "$INSTALLER" stage add examples --hook post-merge --name metadata-apply; then
+      TEST_FAILURE_DIAG='stage add failed'
       rc=1
     fi
   fi
 
   if [ "$rc" -eq 0 ]; then
-    base_branch=$(ghr_git "$repo" "$home" symbolic-ref --short HEAD)
-    parts_dir="$repo/.githooks/post-merge.d"
-    mkdir -p "$parts_dir"
-    if ! cp "$EXAMPLES_DIR/metadata-apply.sh" "$parts_dir/30-metadata-apply.sh"; then
-      TEST_FAILURE_DIAG='failed to copy metadata-apply example'
+    if [ ! -d "$parts_dir" ]; then
+      TEST_FAILURE_DIAG='metadata-apply parts directory missing after staging'
       rc=1
     else
-      chmod 755 "$parts_dir/30-metadata-apply.sh"
+      part_path=$(find "$parts_dir" -maxdepth 1 -type f -name '*metadata-apply*.sh' | head -n 1)
+      if [ -z "$part_path" ]; then
+        TEST_FAILURE_DIAG='metadata-apply part not staged'
+        rc=1
+      fi
     fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    base_branch=$(ghr_git "$repo" "$home" symbolic-ref --short HEAD)
   fi
 
   if [ "$rc" -eq 0 ]; then
@@ -131,7 +157,16 @@ SH
   return "$rc"
 }
 
-example_register 'metadata-apply example runs metastore and records status' example_test_metadata_apply
+example_test_metadata_apply_standard() {
+  example_metadata_apply_run 'standard'
+}
+
+example_test_metadata_apply_ephemeral() {
+  example_metadata_apply_run 'ephemeral'
+}
+
+example_register 'metadata-apply example runs metastore and records status' example_test_metadata_apply_standard
+example_register 'metadata-apply example runs metastore in ephemeral mode' example_test_metadata_apply_ephemeral
 
 if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   if example_run_self; then
