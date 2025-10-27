@@ -219,15 +219,21 @@ install_runner() {
   runner_target="${shared_root%/}/_runner.sh"
   lib_target="${shared_root%/}/lib/common.sh"
   watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
+  hooks_lib_dir="${hooks_root%/}/lib"
+  hooks_lib_target="${hooks_lib_dir%/}/common.sh"
+  hooks_watch_lib_target="${hooks_lib_dir%/}/watch-configured-actions.sh"
   if [ "${shared_root_is_ephemeral:-0}" -eq 1 ]; then
     return 0
   fi
   runner_target_absolute=$(githooks_absolute_path "${runner_target}")
   maybe_run "create shared directory ${shared_root}" githooks_mkdir_p "${shared_root}"
   maybe_run "create library directory ${shared_root%/}/lib" githooks_mkdir_p "${shared_root%/}/lib"
+  maybe_run "create hooks library directory ${hooks_lib_dir}" githooks_mkdir_p "${hooks_lib_dir}"
   maybe_run "copy runner to .git/hooks/_runner.sh" githooks_copy_file "${SCRIPT_DIR}/_runner.sh" "${hooks_root%/}/_runner.sh"
   maybe_run "copy shared library to ${lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/common.sh" "${lib_target}"
   maybe_run "copy watch-configured-actions library to ${watch_lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/watch-configured-actions.sh" "${watch_lib_target}"
+  maybe_run "copy shared library to ${hooks_lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/common.sh" "${hooks_lib_target}"
+  maybe_run "copy watch-configured-actions library to ${hooks_watch_lib_target}" githooks_copy_file "${SCRIPT_DIR}/lib/watch-configured-actions.sh" "${hooks_watch_lib_target}"
   maybe_run "chmod runner ${hooks_root%/}/_runner.sh" githooks_chmod 755 "${hooks_root%/}/_runner.sh"
 }
 
@@ -289,6 +295,8 @@ remove_runner_files() {
   runner_source="${SCRIPT_DIR%/}/_runner.sh"
   lib_source="${SCRIPT_DIR%/}/lib/common.sh"
   watch_lib_source="${SCRIPT_DIR%/}/lib/watch-configured-actions.sh"
+  hooks_lib_source_target="${hooks_lib_target}"
+  hooks_watch_lib_source_target="${hooks_watch_lib_target}"
   planned_removal=0
   performed_removal=0
 
@@ -333,6 +341,36 @@ remove_runner_files() {
         rm -f "${watch_lib_target}"
         performed_removal=1
         githooks_log_info "removed ${watch_lib_target}"
+      fi
+    fi
+  fi
+
+  if [ -f "${hooks_lib_source_target}" ]; then
+    if [ -f "${lib_source}" ] && [ "${hooks_lib_source_target}" -ef "${lib_source}" ]; then
+      githooks_log_info "skip removing ${hooks_lib_source_target}; shared with installer source"
+    else
+      if [ "${DRY_RUN}" -eq 1 ]; then
+        log_action "DRY-RUN: remove ${hooks_lib_source_target}"
+        planned_removal=1
+      else
+        rm -f "${hooks_lib_source_target}"
+        performed_removal=1
+        githooks_log_info "removed ${hooks_lib_source_target}"
+      fi
+    fi
+  fi
+
+  if [ -f "${hooks_watch_lib_source_target}" ]; then
+    if [ -f "${watch_lib_source}" ] && [ "${hooks_watch_lib_source_target}" -ef "${watch_lib_source}" ]; then
+      githooks_log_info "skip removing ${hooks_watch_lib_source_target}; shared with installer source"
+    else
+      if [ "${DRY_RUN}" -eq 1 ]; then
+        log_action "DRY-RUN: remove ${hooks_watch_lib_source_target}"
+        planned_removal=1
+      else
+        rm -f "${hooks_watch_lib_source_target}"
+        performed_removal=1
+        githooks_log_info "removed ${hooks_watch_lib_source_target}"
       fi
     fi
   fi
@@ -2147,6 +2185,9 @@ fi
 runner_target="${shared_root%/}/_runner.sh"
 lib_target="${shared_root%/}/lib/common.sh"
 watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
+hooks_lib_dir="${hooks_root%/}/lib"
+hooks_lib_target="${hooks_lib_dir%/}/common.sh"
+hooks_watch_lib_target="${hooks_lib_dir%/}/watch-configured-actions.sh"
 
 
 if githooks_is_bare_repo; then

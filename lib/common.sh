@@ -72,6 +72,20 @@ _githooks_absolute_path() {
   esac
 }
 
+githooks_absolute_path() {
+  case "$#" in
+    1)
+      _githooks_absolute_path "$1" ''
+      ;;
+    2)
+      _githooks_absolute_path "$1" "$2"
+      ;;
+    *)
+      githooks_die "githooks_absolute_path expects <path> [base]"
+      ;;
+  esac
+}
+
 _githooks_init_context() {
   if [ "${GITHOOKS_CONTEXT_INITIALISED}" = "1" ]; then
     return 0
