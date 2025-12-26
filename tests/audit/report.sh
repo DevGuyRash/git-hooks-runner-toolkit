@@ -109,13 +109,21 @@ run_with_jq() {
   fi
 
   if ! jq -n \
-    --argfile cases "${tmp_cases}" \
-    --argfile surfaces "${tmp_surfaces}" \
+    --slurpfile cases "${tmp_cases}" \
+    --slurpfile surfaces "${tmp_surfaces}" \
     --argjson alias_map "${ALIAS_MAP}" \
-    'def flatten_list($list):
+    'def normalize_list($list):
+       if ($list | length) == 1 and ($list[0] | type) == "array" then
+         $list[0]
+       else
+         $list
+       end;
+     def flatten_list($list):
        reduce $list[]? as $item ([]; . + ($item | gsub("\\\\n"; "\n") | split("\n")))
        | map(select(length>0));
-     def case_args_tokens($case):
+     (normalize_list($cases)) as $cases
+     | (normalize_list($surfaces)) as $surfaces
+     | def case_args_tokens($case):
        flatten_list($case.args // []);
      def case_notes($case):
        flatten_list($case.notes // []);
