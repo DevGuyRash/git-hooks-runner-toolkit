@@ -105,10 +105,25 @@ test_menu_accepts_carriage_return() {
   return 0
 }
 
-tap_plan 3
+test_help_pages_do_not_exit_early() {
+  TEST_FAILURE_DIAG=''
+  output=$(printf '7\n1\n\n8\n9\n' | "${TUI}" 2>/dev/null || true)
+  printf '%s' "$output" | grep -q 'Quick start (beginner)' || {
+    TEST_FAILURE_DIAG='quick start help page did not render'
+    return 1
+  }
+  printf '%s' "$output" | grep -q 'Goodbye.' || {
+    TEST_FAILURE_DIAG='TUI did not return to main menu and exit cleanly'
+    return 1
+  }
+  return 0
+}
+
+tap_plan 4
 run_test 'TUI help output includes header and usage' test_help_output
 run_test 'TUI --version matches installer version' test_version_matches_installer
 run_test 'TUI accepts carriage-return input for menu selection' test_menu_accepts_carriage_return
+run_test 'TUI help pages return to menus' test_help_pages_do_not_exit_early
 
 if [ "$FAIL" -ne 0 ]; then
   exit 1

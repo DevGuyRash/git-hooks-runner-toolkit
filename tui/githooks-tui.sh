@@ -240,7 +240,9 @@ help_page() {
   clear_screen
   show_header
   printf '\n%s\n\n' "${_title}"
-  cat
+  # Read page body from FD 3 so callers can supply a heredoc without
+  # consuming stdin (FD 0). This lets `pause` still read from the terminal.
+  cat <&3
   pause
 }
 
@@ -789,7 +791,7 @@ menu_help() {
     _choice=$(prompt 'Select option' '8')
     case "${_choice}" in
       1|quick|start)
-        help_page 'Quick start (beginner)' <<'EOF'
+        help_page 'Quick start (beginner)' 3<<'EOF'
 This toolkit manages Git hooks in a predictable, composable way.
 
 At a high level:
@@ -808,7 +810,7 @@ Safe exploration:
 EOF
         ;;
       2|files|installed)
-        help_page 'What gets installed (files)' <<'EOF'
+        help_page 'What gets installed (files)' 3<<'EOF'
 The toolkit installs/uses a few key things:
 
 1) Runner
@@ -831,7 +833,7 @@ Where is `<hooks-root>`?
 EOF
         ;;
       3|concepts|glossary)
-        help_page 'Concepts & glossary' <<'EOF'
+        help_page 'Concepts & glossary' 3<<'EOF'
 Terminology:
 
 - Hook:
@@ -857,7 +859,7 @@ Terminology:
 EOF
         ;;
       4|mode|modes)
-        help_page 'Standard vs Ephemeral mode' <<'EOF'
+        help_page 'Standard vs Ephemeral mode' 3<<'EOF'
 Standard mode:
   - Uses `.githooks/` in the repository as the hooks root.
   - Great when you want hook parts tracked in git and shared with the team.
@@ -872,7 +874,7 @@ Either way, the goal is the same:
 EOF
         ;;
       5|overlay)
-        help_page 'Overlay precedence (Ephemeral mode)' <<'EOF'
+        help_page 'Overlay precedence (Ephemeral mode)' 3<<'EOF'
 Overlay controls how Ephemeral Mode combines two possible \"roots\" of hook parts:
   - Ephemeral root (inside `.git/.githooks/parts/`)
   - Versioned root (in `.githooks/`, if it exists)
@@ -891,7 +893,7 @@ If you're unsure:
 EOF
         ;;
       6|menus|what)
-        help_page 'What each menu does' <<'EOF'
+        help_page 'What each menu does' 3<<'EOF'
 Install:
   Creates/refreshes the runner and stubs for selected hooks, and ensures hook
   part directories exist.
