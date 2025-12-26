@@ -538,7 +538,9 @@ watch_actions_execute_rules() {
 
     saved_ifs=$IFS
     IFS=${WATCH_ACTIONS_DELIM_PATTERN}
+    set -f
     set -- dummy ${pattern_set}
+    set +f
     shift
     IFS=${saved_ifs}
     for pattern in "$@"; do
@@ -577,7 +579,9 @@ watch_actions_execute_rules() {
 
     saved_ifs=$IFS
     IFS=${WATCH_ACTIONS_DELIM_COMMAND}
+    set -f
     set -- dummy ${command_set}
+    set +f
     shift
     IFS=${saved_ifs}
 

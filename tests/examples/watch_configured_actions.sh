@@ -552,8 +552,142 @@ YAML
   return "${rc}"
 }
 
+example_test_watch_configured_actions_glob_preserves_deleted_paths() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  old_ifs=$IFS
+  IFS='|'
+  set -- ${tuple}
+  IFS=${old_ifs}
+  base_dir=$1
+  repo_dir=$2
+  remote_dir=$3
+  home_dir=$4
+
+  example_cleanup_watch_configured_actions_glob() {
+    ghr_cleanup_sandbox "${base_dir}"
+  }
+  trap example_cleanup_watch_configured_actions_glob EXIT
+
+  rc=0
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_init_repo "${repo_dir}" "${home_dir}"; then
+      TEST_FAILURE_DIAG='git init failed'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_install_runner "${repo_dir}" "${home_dir}" "${INSTALLER}" 'post-merge'; then
+      TEST_FAILURE_DIAG='runner install failed'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    parts_dir="${repo_dir}/.githooks/post-merge.d"
+    mkdir -p "${parts_dir}"
+    if ! cp "${EXAMPLES_DIR}/watch-configured-actions.sh" "${parts_dir}/40-watch-configured-actions.sh"; then
+      TEST_FAILURE_DIAG='failed to copy watch-configured-actions example'
+      rc=1
+    else
+      chmod 755 "${parts_dir}/40-watch-configured-actions.sh"
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    base_branch=$(ghr_git "${repo_dir}" "${home_dir}" symbolic-ref --short HEAD 2>/dev/null || printf 'master')
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    mkdir -p "${repo_dir}/docs"
+    printf '# Keep\n' >"${repo_dir}/docs/keep.md"
+    printf '# Remove\n' >"${repo_dir}/docs/remove.md"
+    if ! ghr_git "${repo_dir}" "${home_dir}" add docs/keep.md docs/remove.md; then
+      TEST_FAILURE_DIAG='failed to stage docs fixtures'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_git "${repo_dir}" "${home_dir}" commit -q -m 'feat: add docs files'; then
+      TEST_FAILURE_DIAG='failed to commit docs fixtures'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_git "${repo_dir}" "${home_dir}" checkout -b feature >/dev/null 2>&1; then
+      TEST_FAILURE_DIAG='failed to create feature branch'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_git "${repo_dir}" "${home_dir}" rm -q -- docs/remove.md; then
+      TEST_FAILURE_DIAG='failed to delete docs/remove.md'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_git "${repo_dir}" "${home_dir}" commit -q -m 'feat: remove docs file'; then
+      TEST_FAILURE_DIAG='failed to commit docs removal'
+      rc=1
+    fi
+  fi
+
+  inline_rules=$(cat <<'INLINE_RULES'
+name=docs-glob
+patterns=docs/*.md
+commands=printf "docs-hit\n" >> glob.log
+INLINE_RULES
+)
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_git "${repo_dir}" "${home_dir}" checkout "${base_branch}" >/dev/null 2>&1; then
+      TEST_FAILURE_DIAG='failed to return to base branch'
+      rc=1
+    fi
+  fi
+
+  if [ "${rc}" -eq 0 ]; then
+    if ! ghr_in_repo "${repo_dir}" "${home_dir}" \
+      WATCH_INLINE_RULES="${inline_rules}" \
+      GITHOOKS_WATCH_MARK_FILE=.git/watch-config.mark \
+      git merge --no-ff feature -q -m 'merge docs removal'; then
+      TEST_FAILURE_DIAG='git merge failed'
+      rc=1
+    fi
+  fi
+
+  log_file="${repo_dir}/glob.log"
+
+  if [ "${rc}" -eq 0 ]; then
+    if [ ! -f "${log_file}" ]; then
+      TEST_FAILURE_DIAG='glob log not created'
+      rc=1
+    else
+      log_contents=$(ghr_read_or_empty "${log_file}")
+      case "${log_contents}" in
+        *'docs-hit'*) : ;;
+        *) TEST_FAILURE_DIAG='glob log missing docs-hit entry'; rc=1 ;;
+      esac
+    fi
+  fi
+
+  trap - EXIT
+  ghr_cleanup_sandbox "${base_dir}"
+  return "${rc}"
+}
+
 example_register 'watch-configured-actions post-merge matches globstar in standard mode' example_test_watch_configured_actions_central_standard
 example_register 'watch-configured-actions post-merge matches globstar in ephemeral mode' example_test_watch_configured_actions_central_ephemeral
+example_register 'watch-configured-actions treats glob patterns literally for deleted files' example_test_watch_configured_actions_glob_preserves_deleted_paths
 
 if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   if example_run_self; then
@@ -561,4 +695,3 @@ if [ "${EXAMPLE_TEST_RUN_MODE:-standalone}" = "standalone" ]; then
   fi
   exit 1
 fi
-
