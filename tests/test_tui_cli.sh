@@ -95,9 +95,20 @@ test_version_matches_installer() {
   return 0
 }
 
-tap_plan 2
+test_menu_accepts_carriage_return() {
+  TEST_FAILURE_DIAG=''
+  output=$(printf '9\r\n' | "${TUI}" 2>/dev/null || true)
+  printf '%s' "$output" | grep -q 'Goodbye.' || {
+    TEST_FAILURE_DIAG='menu did not accept carriage-return input to exit'
+    return 1
+  }
+  return 0
+}
+
+tap_plan 3
 run_test 'TUI help output includes header and usage' test_help_output
 run_test 'TUI --version matches installer version' test_version_matches_installer
+run_test 'TUI accepts carriage-return input for menu selection' test_menu_accepts_carriage_return
 
 if [ "$FAIL" -ne 0 ]; then
   exit 1

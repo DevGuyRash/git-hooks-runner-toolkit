@@ -20,6 +20,7 @@ TOOLKIT_VERSION=$(${INSTALL_SH} -V 2>/dev/null || printf 'githooks-runner unknow
 DEFAULT_MODE="standard"
 DEFAULT_OVERLAY="ephemeral-first"
 DRY_RUN=0
+CARRIAGE_RETURN=$(printf '\r')
 
 DEFAULT_HOOKS=$(sed -n 's/^DEFAULT_HOOKS="\([^"]*\)".*/\1/p' "${INSTALL_SH}" | head -n 1)
 ALL_HOOKS=$(sed -n 's/^ALL_HOOKS="\([^"]*\)".*/\1/p' "${INSTALL_SH}" | head -n 1)
@@ -64,15 +65,16 @@ prompt() {
   _prompt=$1
   _default=${2-}
   if [ -n "${_default}" ]; then
-    printf '%s [%s]: ' "${_prompt}" "${_default}"
+    printf '%s [%s]: ' "${_prompt}" "${_default}" >&2
   else
-    printf '%s: ' "${_prompt}"
+    printf '%s: ' "${_prompt}" >&2
   fi
   _reply=''
   if ! IFS= read -r _reply; then
     printf '\n' >&2
     exit 1
   fi
+  _reply=$(printf '%s' "${_reply}" | tr -d "${CARRIAGE_RETURN}" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
   if [ -z "${_reply}" ] && [ -n "${_default}" ]; then
     printf '%s' "${_default}"
   else
