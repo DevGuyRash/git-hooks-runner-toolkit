@@ -176,8 +176,12 @@ select_mode() {
   while :; do
     _reply=$(prompt 'Mode (standard/ephemeral)' "${_default}")
     case "${_reply}" in
-      standard|ephemeral)
-        printf '%s' "${_reply}"
+      standard|STD|std|s|S)
+        printf 'standard'
+        return 0
+        ;;
+      ephemeral|E|e|epi|EPI)
+        printf 'ephemeral'
         return 0
         ;;
       *)
@@ -192,8 +196,16 @@ select_overlay() {
   while :; do
     _reply=$(prompt 'Overlay (ephemeral-first/versioned-first/merge)' "${_default}")
     case "${_reply}" in
-      ephemeral-first|versioned-first|merge)
-        printf '%s' "${_reply}"
+      ephemeral-first|ephemeral|ef|EF)
+        printf 'ephemeral-first'
+        return 0
+        ;;
+      versioned-first|versioned|vf|VF)
+        printf 'versioned-first'
+        return 0
+        ;;
+      merge|m|M)
+        printf 'merge'
         return 0
         ;;
       *)
