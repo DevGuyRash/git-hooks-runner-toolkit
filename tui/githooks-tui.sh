@@ -235,6 +235,91 @@ run_help() {
   pause
 }
 
+help_page() {
+  _title=$1
+  clear_screen
+  show_header
+  printf '\n%s\n\n' "${_title}"
+  cat
+  pause
+}
+
+menu_help_manuals() {
+  while :; do
+    clear_screen
+    show_header
+    printf '\nCLI Manuals (MAN-style)\n'
+    printf 'These are the exact help pages from `install.sh`.\n\n'
+    printf '1) Overview\n'
+    printf '2) Install\n'
+    printf '3) Update\n'
+    printf '4) Stage\n'
+    printf '5) Stage add\n'
+    printf '6) Stage unstage\n'
+    printf '7) Stage remove\n'
+    printf '8) Stage list\n'
+    printf '9) Hooks\n'
+    printf '10) Hooks list\n'
+    printf '11) Config\n'
+    printf '12) Config show\n'
+    printf '13) Config set\n'
+    printf '14) Uninstall\n'
+    printf '15) Back\n'
+    _choice=$(prompt 'Select option' '15')
+    case "${_choice}" in
+      1|overview)
+        run_help 'githooks help' "${INSTALL_SH}" help
+        ;;
+      2|install)
+        run_help 'githooks help install' "${INSTALL_SH}" help install
+        ;;
+      3|update)
+        run_help 'githooks help update' "${INSTALL_SH}" help update
+        ;;
+      4|stage)
+        run_help 'githooks help stage' "${INSTALL_SH}" help stage
+        ;;
+      5|stage-add|add)
+        run_help 'githooks stage help add' "${INSTALL_SH}" stage help add
+        ;;
+      6|stage-unstage|unstage)
+        run_help 'githooks stage help unstage' "${INSTALL_SH}" stage help unstage
+        ;;
+      7|stage-remove|remove)
+        run_help 'githooks stage help remove' "${INSTALL_SH}" stage help remove
+        ;;
+      8|stage-list|list)
+        run_help 'githooks stage help list' "${INSTALL_SH}" stage help list
+        ;;
+      9|hooks)
+        run_help 'githooks help hooks' "${INSTALL_SH}" help hooks
+        ;;
+      10|hooks-list)
+        run_help 'githooks hooks help list' "${INSTALL_SH}" hooks help list
+        ;;
+      11|config)
+        run_help 'githooks help config' "${INSTALL_SH}" help config
+        ;;
+      12|config-show)
+        run_help 'githooks config help show' "${INSTALL_SH}" config help show
+        ;;
+      13|config-set)
+        run_help 'githooks config help set' "${INSTALL_SH}" config help set
+        ;;
+      14|uninstall)
+        run_help 'githooks help uninstall' "${INSTALL_SH}" help uninstall
+        ;;
+      15|back|b)
+        return 0
+        ;;
+      *)
+        printf 'Invalid selection.\n'
+        pause
+        ;;
+    esac
+  done
+}
+
 menu_settings() {
   while :; do
     clear_screen
@@ -693,66 +778,149 @@ menu_help() {
     clear_screen
     show_header
     printf '\nHelp\n'
-    printf '1) Overview\n'
-    printf '2) Install\n'
-    printf '3) Update\n'
-    printf '4) Stage\n'
-    printf '5) Stage add\n'
-    printf '6) Stage unstage\n'
-    printf '7) Stage remove\n'
-    printf '8) Stage list\n'
-    printf '9) Hooks\n'
-    printf '10) Hooks list\n'
-    printf '11) Config\n'
-    printf '12) Config show\n'
-    printf '13) Config set\n'
-    printf '14) Uninstall\n'
-    printf '15) Back\n'
-    _choice=$(prompt 'Select option' '15')
+    printf '1) Quick start (beginner)\n'
+    printf '2) What gets installed (files)\n'
+    printf '3) Concepts & glossary\n'
+    printf '4) Standard vs Ephemeral mode\n'
+    printf '5) Overlay precedence (Ephemeral)\n'
+    printf '6) What each menu does\n'
+    printf '7) CLI manuals (exact help text)\n'
+    printf '8) Back\n'
+    _choice=$(prompt 'Select option' '8')
     case "${_choice}" in
-      1|overview)
-        run_help 'githooks help' "${INSTALL_SH}" help
+      1|quick|start)
+        help_page 'Quick start (beginner)' <<'EOF'
+This toolkit manages Git hooks in a predictable, composable way.
+
+At a high level:
+  1) Git runs a hook (e.g. pre-commit, post-merge)
+  2) A tiny "stub" script in `.git/hooks/<hook>` dispatches to a shared runner
+  3) The runner executes every executable `*.sh` in `<hooks-root>/<hook>.d/`
+     in lexical (sorted) order.
+
+Common beginner workflow:
+  - Install (creates runner + stubs + hook directories)
+  - Stage examples (copies ready-made hook parts into the right hook slots)
+  - Hooks list / Stage list to inspect what is active
+
+Safe exploration:
+  - Enable "dry-run" in Settings to preview filesystem changes without applying.
+EOF
         ;;
-      2|install)
-        run_help 'githooks help install' "${INSTALL_SH}" help install
+      2|files|installed)
+        help_page 'What gets installed (files)' <<'EOF'
+The toolkit installs/uses a few key things:
+
+1) Runner
+   - A shared runner script that orchestrates hook execution.
+
+2) Stubs (dispatchers)
+   - Small scripts placed in `.git/hooks/<hook>` that call the runner.
+   - They replace "one big hook script" with a stable dispatcher.
+
+3) Hook part directories
+   - Directories like `<hooks-root>/pre-commit.d/` containing executable `*.sh`.
+   - The runner executes these parts in sorted order.
+
+4) Optional config files (some examples)
+   - Staging certain examples can also install config under `<hooks-root>/config/`.
+
+Where is `<hooks-root>`?
+  - Usually `.githooks/` (standard mode)
+  - Or `.git/.githooks/parts/` (ephemeral mode), with optional overlays.
+EOF
         ;;
-      3|update)
-        run_help 'githooks help update' "${INSTALL_SH}" help update
+      3|concepts|glossary)
+        help_page 'Concepts & glossary' <<'EOF'
+Terminology:
+
+- Hook:
+  A Git event name like `pre-commit` or `post-merge`.
+
+- Hook stub:
+  A small script in `.git/hooks/<hook>` that dispatches to the runner.
+  You generally don't edit stubs by hand.
+
+- Runner:
+  The shared script that finds and runs "hook parts" for the current hook.
+
+- Hook part:
+  An executable `*.sh` file that performs one action (lint, tests, sync deps, ...).
+  Parts live in `<hooks-root>/<hook>.d/` and run in lexical order.
+
+- Stage:
+  Copy scripts from a source directory (like `examples/`) into the right hook slot.
+  Staging is how you "enable" example parts quickly.
+
+- Dry-run:
+  A safety switch that prints planned actions without modifying files.
+EOF
         ;;
-      4|stage)
-        run_help 'githooks help stage' "${INSTALL_SH}" help stage
+      4|mode|modes)
+        help_page 'Standard vs Ephemeral mode' <<'EOF'
+Standard mode:
+  - Uses `.githooks/` in the repository as the hooks root.
+  - Great when you want hook parts tracked in git and shared with the team.
+
+Ephemeral mode:
+  - Installs active runner assets under `.git/.githooks/` (not tracked in git).
+  - Useful when repo policy forbids committing tooling, or for local-only setups.
+  - Can still run versioned hook parts via overlay precedence (see next page).
+
+Either way, the goal is the same:
+  Git hook -> stub -> runner -> run parts in `<hooks-root>/<hook>.d/`.
+EOF
         ;;
-      5|stage-add|add)
-        run_help 'githooks stage help add' "${INSTALL_SH}" stage help add
+      5|overlay)
+        help_page 'Overlay precedence (Ephemeral mode)' <<'EOF'
+Overlay controls how Ephemeral Mode combines two possible \"roots\" of hook parts:
+  - Ephemeral root (inside `.git/.githooks/parts/`)
+  - Versioned root (in `.githooks/`, if it exists)
+
+Overlay choices:
+  - ephemeral-first:
+      run ephemeral parts before versioned parts.
+  - versioned-first:
+      run versioned parts before ephemeral parts.
+  - merge:
+      keep both roots active without changing their default ordering.
+
+If you're unsure:
+  - Use `ephemeral-first` for local-only overrides.
+  - Use `versioned-first` if repo-managed hooks should take priority.
+EOF
         ;;
-      6|stage-unstage|unstage)
-        run_help 'githooks stage help unstage' "${INSTALL_SH}" stage help unstage
+      6|menus|what)
+        help_page 'What each menu does' <<'EOF'
+Install:
+  Creates/refreshes the runner and stubs for selected hooks, and ensures hook
+  part directories exist.
+
+Update:
+  Refreshes already-installed assets (runner/stubs) and re-syncs staged parts
+  that have a known source (examples/ or hooks/).
+
+Stage:
+  Add / remove hook parts in `<hooks-root>/<hook>.d/`.
+  - Add: copy scripts from a source directory into the right hook slot(s).
+  - Unstage: reverse "Add" for scripts that match the source.
+  - Remove: delete a specific staged part or all parts for one hook.
+  - List: show what parts are currently staged.
+
+Hooks:
+  Summary view: which hooks have stubs installed, and how many parts exist.
+
+Config:
+  View or set hook-related git config (notably `core.hooksPath`).
+
+Uninstall:
+  Remove toolkit-managed stubs/runner artefacts (with safe checks).
+EOF
         ;;
-      7|stage-remove|remove)
-        run_help 'githooks stage help remove' "${INSTALL_SH}" stage help remove
+      7|manuals|cli)
+        menu_help_manuals
         ;;
-      8|stage-list|list)
-        run_help 'githooks stage help list' "${INSTALL_SH}" stage help list
-        ;;
-      9|hooks)
-        run_help 'githooks help hooks' "${INSTALL_SH}" help hooks
-        ;;
-      10|hooks-list)
-        run_help 'githooks hooks help list' "${INSTALL_SH}" hooks help list
-        ;;
-      11|config)
-        run_help 'githooks help config' "${INSTALL_SH}" help config
-        ;;
-      12|config-show)
-        run_help 'githooks config help show' "${INSTALL_SH}" config help show
-        ;;
-      13|config-set)
-        run_help 'githooks config help set' "${INSTALL_SH}" config help set
-        ;;
-      14|uninstall)
-        run_help 'githooks help uninstall' "${INSTALL_SH}" help uninstall
-        ;;
-      15|back|b)
+      8|back|b)
         return 0
         ;;
       *)
