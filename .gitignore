@@ -4,3 +4,4 @@ tests/audit/output/*
 !tests/audit/output/audit-findings.json
 !tests/audit/output/audit-findings.txt
 tests/audit/output/help/
+tui/target/

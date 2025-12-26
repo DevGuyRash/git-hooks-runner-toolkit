@@ -383,6 +383,18 @@ The `install.sh` script provides several commands to customize its behavior:
 | `-h`, `--help`    | Show the global help message. You can also target subcommands (e.g. `--help stage`). |
 | `-V`, `--version` | Print the toolkit version.                                                           |
 
+### Interactive TUI
+
+Prefer a menu-driven workflow? Launch the POSIX shell TUI, which exposes **all**
+CLI operations (install/update/stage/hooks/config/uninstall) plus contextual help:
+
+```bash
+./tui/githooks-tui.sh
+```
+
+Use **Settings** inside the TUI to toggle `--dry-run` and set your default mode
+(`standard` or `ephemeral`). You can exit at any time without changing your repo.
+
 ### Provided Examples
 
 The toolkit comes with several examples in the `examples/` directory. Each has a
