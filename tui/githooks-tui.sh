@@ -6,6 +6,7 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd -P)
 ROOT_DIR=$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd -P)
 INSTALL_SH="${ROOT_DIR}/install.sh"
+TARGET_DIR=$(pwd -P 2>/dev/null || pwd)
 
 if [ ! -f "${INSTALL_SH}" ]; then
   printf 'ERROR: install.sh not found at %s\n' "${INSTALL_SH}" >&2
@@ -42,6 +43,9 @@ Usage:
 Options:
   -h, --help     Show this message.
   -V, --version  Show toolkit version.
+
+Notes:
+  - The current working directory is treated as the target repository.
 HELP
 }
 
@@ -128,7 +132,8 @@ format_cmd() {
 show_header() {
   printf 'Git Hooks Runner Toolkit TUI\n'
   printf '%s\n' "${TOOLKIT_VERSION}"
-  printf 'Repo: %s\n' "${ROOT_DIR}"
+  printf 'Toolkit: %s\n' "${ROOT_DIR}"
+  printf 'Target: %s\n' "${TARGET_DIR}"
   printf 'Settings: mode=%s overlay=%s dry-run=%s\n' \
     "${DEFAULT_MODE}" "${DEFAULT_OVERLAY}" "$(format_onoff "${DRY_RUN}")"
 }
@@ -220,7 +225,7 @@ run_cmd() {
   shift
   printf '\nCommand: %s\n' "${_display}"
   if confirm 'Run command now?' 'y'; then
-    (cd "${ROOT_DIR}" && "$@")
+    (cd "${TARGET_DIR}" && "$@")
   else
     printf 'Cancelled.\n'
   fi

@@ -119,11 +119,48 @@ test_help_pages_do_not_exit_early() {
   return 0
 }
 
-tap_plan 4
+test_tui_targets_cwd_repo() {
+  TEST_FAILURE_DIAG=''
+  base_tmp=${TMPDIR:-/tmp}
+  sandbox=$(mktemp -d "${base_tmp%/}/tui-target.XXXXXX") || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  repo_dir="${sandbox}/repo"
+  home_dir="${sandbox}/home"
+  mkdir -p "${repo_dir}" "${home_dir}"
+
+  if ! git -C "${repo_dir}" init -q; then
+    TEST_FAILURE_DIAG='git init failed for sandbox'
+    rm -rf "${sandbox}"
+    return 1
+  fi
+  git -C "${repo_dir}" config user.name 'TUI Tester'
+  git -C "${repo_dir}" config user.email 'tui@example.invalid'
+  printf 'seed\n' >"${repo_dir}/README.md"
+  git -C "${repo_dir}" add README.md
+  git -C "${repo_dir}" commit -q -m 'feat: seed repo'
+
+  # Drive the install flow using defaults, then exit.
+  tui_input=$(printf '1\n\n\n\n\n9\n')
+  printf '%s' "${tui_input}" | (cd "${repo_dir}" && "${TUI}" >/dev/null 2>&1 || true)
+
+  if [ ! -f "${repo_dir}/.git/hooks/_runner.sh" ]; then
+    TEST_FAILURE_DIAG='expected runner to be installed in cwd target repo'
+    rm -rf "${sandbox}"
+    return 1
+  fi
+
+  rm -rf "${sandbox}"
+  return 0
+}
+
+tap_plan 5
 run_test 'TUI help output includes header and usage' test_help_output
 run_test 'TUI --version matches installer version' test_version_matches_installer
 run_test 'TUI accepts carriage-return input for menu selection' test_menu_accepts_carriage_return
 run_test 'TUI help pages return to menus' test_help_pages_do_not_exit_early
+run_test 'TUI runs install commands in the current working directory' test_tui_targets_cwd_repo
 
 if [ "$FAIL" -ne 0 ]; then
   exit 1
