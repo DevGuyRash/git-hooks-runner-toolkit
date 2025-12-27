@@ -59,6 +59,23 @@ graph TD
 
 ## Getting Started
 
+### Brand‑new repo flow (quick visual)
+
+This diagram shows the typical sequence for a brand‑new repository:
+
+```mermaid
+flowchart TD
+  A["New repo (git init)"] --> B["Bootstrap toolkit into .githooks/ (optional but recommended)"]
+  B --> C["Install hooks (stubs + runner)"]
+  C --> D["Stage examples or your own parts"]
+  D --> E["Commit .githooks/ (if using standard mode)"]
+  C --> F["Ephemeral Mode install (no tracked files)"]
+  F --> D
+
+  classDef optional fill:#f6f6f6,stroke:#9aa0a6,stroke-width:1px
+  class B optional
+```
+
 ### 1. Vendor the Toolkit
 
 You can add the toolkit to your project in two ways: as a direct clone or as a Git submodule.
