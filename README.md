@@ -61,19 +61,22 @@ graph TD
 
 ### Brand‑new repo flow (quick visual)
 
-This diagram shows the typical sequence for a brand‑new repository:
+This diagram shows the recommended flow for a brand‑new repository, split by **standard (versioned)** vs **ephemeral** installs:
 
 ```mermaid
 flowchart TD
-  A["New repo (git init)"] --> B["Bootstrap toolkit into .githooks/ (optional but recommended)"]
+  A["New repo (git init)"] --> B["Bootstrap toolkit into .githooks/"]
   B --> C["Install hooks (stubs + runner)"]
   C --> D["Stage examples or your own parts"]
-  D --> E["Commit .githooks/ (if using standard mode)"]
-  C --> F["Ephemeral Mode install (no tracked files)"]
+  D --> E["Commit .githooks/ (standard mode)"]
+
+  A --> F["Install hooks in Ephemeral Mode (no tracked files)"]
   F --> D
 
-  classDef optional fill:#f6f6f6,stroke:#9aa0a6,stroke-width:1px
-  class B optional
+  classDef standard fill:#f6f6f6,stroke:#9aa0a6,stroke-width:1px
+  classDef ephemeral fill:#eef6ff,stroke:#6aa0ff,stroke-width:1px
+  class B,C,D,E standard
+  class F ephemeral
 ```
 
 ### 1. Vendor the Toolkit
