@@ -88,6 +88,12 @@ This is the simplest method and is recommended for most users. It integrates the
 
 With this approach, any custom hooks you add to `.githooks/` are simply part of your project and can be committed directly. The trade-off is that updating the toolkit requires a manual merge from the upstream repository.
 
+**Shortcut:** If you already have a checkout of the toolkit elsewhere, you can vendor it into a repo in one step:
+
+```bash
+/path/to/git-hooks-runner-toolkit/install.sh --repo /path/to/repo bootstrap
+```
+
 #### Option 2: Git Submodule (Advanced)
 
 If you want to keep the toolkit's history separate and update it easily, you can use a submodule. However, this is an advanced workflow that is considerably more complex, especially for teams.

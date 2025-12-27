@@ -92,6 +92,9 @@ GLOBAL OPTIONS
         working directory.
 
 COMMAND OVERVIEW
+    bootstrap
+        Vendor the toolkit into the repository (for self-contained use).
+
     install
         Provision the runner, stubs, and default hook directories.
 
@@ -140,6 +143,7 @@ REQUEST_UNINSTALL=0
 
 CLI_INSTALL_MODE="standard"
 REPO_OVERRIDE=""
+BOOTSTRAP_ITEMS="install.sh _runner.sh lib examples hooks tui docs README.md CHANGELOG.md"
 
 TOOLKIT_VERSION="${TOOLKIT_VERSION:-0.3.0}"
 COMPAT_WARNED=0
@@ -286,6 +290,29 @@ create_parts_dir() {
     return 0
   fi
   githooks_mkdir_p "${parts_dir}"
+}
+
+bootstrap_copy_item() {
+  bootstrap_item=$1
+  bootstrap_src="${BOOTSTRAP_SOURCE%/}/${bootstrap_item}"
+  bootstrap_dst="${BOOTSTRAP_TARGET%/}/${bootstrap_item}"
+  if [ ! -e "${bootstrap_src}" ]; then
+    githooks_log_warn "bootstrap skip missing ${bootstrap_item}"
+    return 0
+  fi
+  if [ -d "${bootstrap_src}" ]; then
+    maybe_run "copy ${bootstrap_item} directory" cp -R "${bootstrap_src}" "${bootstrap_dst}"
+  else
+    maybe_run "copy ${bootstrap_item}" githooks_copy_file "${bootstrap_src}" "${bootstrap_dst}"
+  fi
+}
+
+bootstrap_chmod_if_exists() {
+  bootstrap_path=$1
+  bootstrap_mode=$2
+  if [ -f "${bootstrap_path}" ]; then
+    maybe_run "chmod ${bootstrap_mode} ${bootstrap_path}" githooks_chmod "${bootstrap_mode}" "${bootstrap_path}"
+  fi
 }
 
 remove_runner_files() {
@@ -1265,6 +1292,9 @@ DESCRIPTION
     per-hook directories (.githooks/<hook>.d) for staged scripts. Existing stubs
     are left untouched unless --force is supplied.
 
+    This command does not vendor the toolkit itself. Run `githooks bootstrap`
+    first if you want a self-contained `.githooks/` copy (including the TUI).
+
     When invoked with `--mode ephemeral`, the runner and stubs live under
     .git/.githooks/, leaving repository history untouched while persisting
     across pulls and resets. The installer records manifest metadata so future
@@ -1333,6 +1363,47 @@ EXAMPLES
 
 SEE ALSO
     githooks stage add, githooks uninstall
+HELP
+}
+
+print_bootstrap_usage() {
+  cat <<'HELP'
+NAME
+    githooks bootstrap - Vendor the toolkit into the repository.
+
+SYNOPSIS
+    githooks bootstrap [OPTIONS]
+
+DESCRIPTION
+    Copies the toolkit files (install.sh, _runner.sh, lib/, examples/, hooks/,
+    tui/, docs/) into `.githooks/` so the repository becomes self-contained.
+    This command only vendors the toolkit. It does not install hook stubs or
+    modify Git configuration; run `githooks install` afterwards to enable
+    hooks.
+
+OPTIONS
+    --force | -f
+        Overwrite an existing `.githooks/` directory. Without this flag the
+        command refuses to replace an existing toolkit checkout.
+
+    -n, --dry-run
+        Print the actions that would be taken without touching the filesystem.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks bootstrap
+        Vendor the toolkit into the current repository.
+
+    githooks --repo /path/to/repo bootstrap --force
+        Replace the toolkit inside another repository.
+
+    githooks bootstrap && .githooks/install.sh install
+        Vendor the toolkit and then install hook stubs/runner assets.
+
+SEE ALSO
+    githooks install, githooks update
 HELP
 }
 
@@ -2200,6 +2271,73 @@ init_repo_paths() {
   else
     stub_runner='$(git rev-parse --show-toplevel)/.githooks/_runner.sh'
   fi
+}
+
+cmd_bootstrap() {
+  BOOTSTRAP_FORCE=0
+  if [ "$#" -gt 0 ]; then
+    case "$1" in
+      help)
+        print_bootstrap_usage
+        return 0
+        ;;
+    esac
+  fi
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --force|-f)
+        BOOTSTRAP_FORCE=1
+        shift
+        ;;
+      --dry-run|-n)
+        DRY_RUN=1
+        shift
+        ;;
+      -h|--help|help)
+        print_bootstrap_usage
+        return 0
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        githooks_die "unknown option for bootstrap: $1"
+        ;;
+      *)
+        githooks_die "unexpected argument for bootstrap: $1"
+        ;;
+    esac
+  done
+
+  BOOTSTRAP_SOURCE="${SCRIPT_DIR}"
+  BOOTSTRAP_TARGET="$(githooks_repo_top)/.githooks"
+
+  if [ "${BOOTSTRAP_TARGET%/}" = "${BOOTSTRAP_SOURCE%/}" ]; then
+    githooks_log_info "bootstrap skipped; toolkit already at ${BOOTSTRAP_TARGET}"
+    return 0
+  fi
+
+  if [ -e "${BOOTSTRAP_TARGET}" ]; then
+    if [ "${BOOTSTRAP_FORCE}" -eq 1 ]; then
+      maybe_run "remove existing toolkit ${BOOTSTRAP_TARGET}" rm -rf "${BOOTSTRAP_TARGET}"
+    else
+      githooks_die "bootstrap target exists: ${BOOTSTRAP_TARGET} (use --force to overwrite)"
+    fi
+  fi
+
+  maybe_run "create toolkit directory ${BOOTSTRAP_TARGET}" githooks_mkdir_p "${BOOTSTRAP_TARGET}"
+
+  for bootstrap_item in ${BOOTSTRAP_ITEMS}; do
+    bootstrap_copy_item "${bootstrap_item}"
+  done
+
+  bootstrap_chmod_if_exists "${BOOTSTRAP_TARGET%/}/install.sh" 755
+  bootstrap_chmod_if_exists "${BOOTSTRAP_TARGET%/}/_runner.sh" 755
+  bootstrap_chmod_if_exists "${BOOTSTRAP_TARGET%/}/tui/githooks-tui.sh" 755
+
+  githooks_log_info "bootstrap complete: ${BOOTSTRAP_TARGET}"
 }
 
 cmd_install() {
@@ -3163,6 +3301,9 @@ cmd_help() {
     install)
       print_install_usage
       ;;
+    bootstrap)
+      print_bootstrap_usage
+      ;;
     update)
       print_update_usage
       ;;
@@ -3326,6 +3467,9 @@ if [ "${COMMAND}" != "help" ]; then
 fi
 
 case "${COMMAND}" in
+  bootstrap)
+    cmd_bootstrap "$@"
+    ;;
   install)
     cmd_install "$@"
     ;;
