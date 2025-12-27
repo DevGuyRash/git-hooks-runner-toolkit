@@ -87,6 +87,10 @@ GLOBAL OPTIONS
         .githooks/. Use `ephemeral` to install under .git/.githooks/ while
         leaving tracked files untouched; see docs/ephemeral-mode.md for details.
 
+    --repo PATH
+        Run commands against a target repository path instead of the current
+        working directory.
+
 COMMAND OVERVIEW
     install
         Provision the runner, stubs, and default hook directories.
@@ -135,6 +139,7 @@ REQUEST_STAGE=0
 REQUEST_UNINSTALL=0
 
 CLI_INSTALL_MODE="standard"
+REPO_OVERRIDE=""
 
 TOOLKIT_VERSION="${TOOLKIT_VERSION:-0.3.0}"
 COMPAT_WARNED=0
@@ -2175,26 +2180,27 @@ update_log_summary() {
   githooks_log_info "update summary: stubs=${UPDATE_REFRESHED_STUBS} parts=${UPDATE_PARTS_REFRESHED} identical=${UPDATE_PARTS_SKIPPED_IDENTICAL} missing=${UPDATE_PARTS_SOURCE_MISSING} support=${UPDATE_SUPPORT_REFRESHED}"
 }
 
-shared_root=$(githooks_shared_root)
-hooks_root=$(githooks_hooks_root)
-shared_root_is_ephemeral=0
-shared_repo_git_dir=$(githooks_repo_git_dir)
-if [ "${shared_root}" = "${shared_repo_git_dir%/}/.githooks/parts" ]; then
-  shared_root_is_ephemeral=1
-fi
-runner_target="${shared_root%/}/_runner.sh"
-lib_target="${shared_root%/}/lib/common.sh"
-watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
-hooks_lib_dir="${hooks_root%/}/lib"
-hooks_lib_target="${hooks_lib_dir%/}/common.sh"
-hooks_watch_lib_target="${hooks_lib_dir%/}/watch-configured-actions.sh"
+init_repo_paths() {
+  shared_root=$(githooks_shared_root)
+  hooks_root=$(githooks_hooks_root)
+  shared_root_is_ephemeral=0
+  shared_repo_git_dir=$(githooks_repo_git_dir)
+  if [ "${shared_root}" = "${shared_repo_git_dir%/}/.githooks/parts" ]; then
+    shared_root_is_ephemeral=1
+  fi
+  runner_target="${shared_root%/}/_runner.sh"
+  lib_target="${shared_root%/}/lib/common.sh"
+  watch_lib_target="${shared_root%/}/lib/watch-configured-actions.sh"
+  hooks_lib_dir="${hooks_root%/}/lib"
+  hooks_lib_target="${hooks_lib_dir%/}/common.sh"
+  hooks_watch_lib_target="${hooks_lib_dir%/}/watch-configured-actions.sh"
 
-
-if githooks_is_bare_repo; then
-  stub_runner='$(dirname "$0")/_runner.sh'
-else
-  stub_runner='$(git rev-parse --show-toplevel)/.githooks/_runner.sh'
-fi
+  if githooks_is_bare_repo; then
+    stub_runner='$(dirname "$0")/_runner.sh'
+  else
+    stub_runner='$(git rev-parse --show-toplevel)/.githooks/_runner.sh'
+  fi
+}
 
 cmd_install() {
   INSTALL_RESOLVED_MODE=$(githooks_cli_resolve_mode "${CLI_INSTALL_MODE}" "$@")
@@ -3258,6 +3264,17 @@ while [ "$#" -gt 0 ]; do
       CLI_INSTALL_MODE=$(githooks_cli_normalise_mode "${1#*=}")
       shift
       ;;
+    --repo)
+      if [ "$#" -lt 2 ]; then
+        githooks_die "--repo requires a path"
+      fi
+      REPO_OVERRIDE=$(githooks_absolute_path "$2")
+      shift 2
+      ;;
+    --repo=*)
+      REPO_OVERRIDE=$(githooks_absolute_path "${1#*=}")
+      shift
+      ;;
     --)
       shift
       break
@@ -3293,6 +3310,19 @@ fi
 if [ "${GLOBAL_SHOW_HELP}" -eq 1 ]; then
   cmd_help "${COMMAND}" "$@"
   exit 0
+fi
+
+if [ -n "${REPO_OVERRIDE}" ]; then
+  if [ ! -d "${REPO_OVERRIDE}" ]; then
+    githooks_die "repo path not found: ${REPO_OVERRIDE}"
+  fi
+  if ! cd "${REPO_OVERRIDE}"; then
+    githooks_die "unable to enter repo path: ${REPO_OVERRIDE}"
+  fi
+fi
+
+if [ "${COMMAND}" != "help" ]; then
+  init_repo_paths
 fi
 
 case "${COMMAND}" in
@@ -3333,4 +3363,3 @@ case "${COMMAND}" in
     cmd_unknown "${COMMAND}"
     ;;
 esac
-

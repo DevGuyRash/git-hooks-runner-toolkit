@@ -921,7 +921,42 @@ test_stage_help_subcommands() {
   cleanup_and_return "$parsed_base" "$rc"
 }
 
-TOTAL_TESTS=18
+test_install_repo_flag_targets_repo() {
+  TEST_FAILURE_DIAG=''
+  tuple=$(ghr_mk_sandbox) || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  parse_tuple "$tuple"
+  trap 'ghr_cleanup_sandbox "$parsed_base"' EXIT
+  rc=0
+
+  if [ "$rc" -eq 0 ] && ! ghr_init_repo "$parsed_repo" "$parsed_home"; then
+    TEST_FAILURE_DIAG='git init failed'
+    rc=1
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    if ! (cd "$parsed_base" && HOME="$parsed_home" XDG_CONFIG_HOME="$parsed_home/.config" \
+      GIT_CONFIG_NOSYSTEM=1 GIT_TERMINAL_PROMPT=0 LC_ALL=C \
+      "$INSTALLER" --repo "$parsed_repo" install >/dev/null 2>&1); then
+      TEST_FAILURE_DIAG='installer --repo install failed'
+      rc=1
+    fi
+  fi
+
+  if [ "$rc" -eq 0 ]; then
+    target="$parsed_repo/.git/hooks/_runner.sh"
+    if [ ! -f "$target" ]; then
+      TEST_FAILURE_DIAG='expected runner missing after --repo install'
+      rc=1
+    fi
+  fi
+
+  cleanup_and_return "$parsed_base" "$rc"
+}
+
+TOTAL_TESTS=19
 
 tap_plan "$TOTAL_TESTS"
 
@@ -955,6 +990,7 @@ run_test 'stage list prints header and entries' test_stage_list_outputs_entries
 run_test 'global help and version flags respond' test_global_help_and_version
 run_test 'hooks list pre-commit shows summary' test_hooks_list_specific
 run_test 'stage help supports MAN output' test_stage_help_subcommands
+run_test 'install --repo targets alternate working directory' test_install_repo_flag_targets_repo
 
 diag "Pass=${PASS} Fail=${FAIL} Total=$((PASS+FAIL))"
 if [ "$FAIL" -eq 0 ]; then
