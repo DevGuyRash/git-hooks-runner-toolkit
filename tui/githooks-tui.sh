@@ -258,65 +258,69 @@ menu_help_manuals() {
     printf '\nCLI Manuals (MAN-style)\n'
     printf 'These are the exact help pages from `install.sh`.\n\n'
     printf '1) Overview\n'
-    printf '2) Install\n'
-    printf '3) Update\n'
-    printf '4) Stage\n'
-    printf '5) Stage add\n'
-    printf '6) Stage unstage\n'
-    printf '7) Stage remove\n'
-    printf '8) Stage list\n'
-    printf '9) Hooks\n'
-    printf '10) Hooks list\n'
-    printf '11) Config\n'
-    printf '12) Config show\n'
-    printf '13) Config set\n'
-    printf '14) Uninstall\n'
-    printf '15) Back\n'
-    _choice=$(prompt 'Select option' '15')
+    printf '2) Bootstrap\n'
+    printf '3) Install\n'
+    printf '4) Update\n'
+    printf '5) Stage\n'
+    printf '6) Stage add\n'
+    printf '7) Stage unstage\n'
+    printf '8) Stage remove\n'
+    printf '9) Stage list\n'
+    printf '10) Hooks\n'
+    printf '11) Hooks list\n'
+    printf '12) Config\n'
+    printf '13) Config show\n'
+    printf '14) Config set\n'
+    printf '15) Uninstall\n'
+    printf '16) Back\n'
+    _choice=$(prompt 'Select option' '16')
     case "${_choice}" in
       1|overview)
         run_help 'githooks help' "${INSTALL_SH}" help
         ;;
-      2|install)
+      2|bootstrap)
+        run_help 'githooks help bootstrap' "${INSTALL_SH}" help bootstrap
+        ;;
+      3|install)
         run_help 'githooks help install' "${INSTALL_SH}" help install
         ;;
-      3|update)
+      4|update)
         run_help 'githooks help update' "${INSTALL_SH}" help update
         ;;
-      4|stage)
+      5|stage)
         run_help 'githooks help stage' "${INSTALL_SH}" help stage
         ;;
-      5|stage-add|add)
+      6|stage-add|add)
         run_help 'githooks stage help add' "${INSTALL_SH}" stage help add
         ;;
-      6|stage-unstage|unstage)
+      7|stage-unstage|unstage)
         run_help 'githooks stage help unstage' "${INSTALL_SH}" stage help unstage
         ;;
-      7|stage-remove|remove)
+      8|stage-remove|remove)
         run_help 'githooks stage help remove' "${INSTALL_SH}" stage help remove
         ;;
-      8|stage-list|list)
+      9|stage-list|list)
         run_help 'githooks stage help list' "${INSTALL_SH}" stage help list
         ;;
-      9|hooks)
+      10|hooks)
         run_help 'githooks help hooks' "${INSTALL_SH}" help hooks
         ;;
-      10|hooks-list)
+      11|hooks-list)
         run_help 'githooks hooks help list' "${INSTALL_SH}" hooks help list
         ;;
-      11|config)
+      12|config)
         run_help 'githooks help config' "${INSTALL_SH}" help config
         ;;
-      12|config-show)
+      13|config-show)
         run_help 'githooks config help show' "${INSTALL_SH}" config help show
         ;;
-      13|config-set)
+      14|config-set)
         run_help 'githooks config help set' "${INSTALL_SH}" config help set
         ;;
-      14|uninstall)
+      15|uninstall)
         run_help 'githooks help uninstall' "${INSTALL_SH}" help uninstall
         ;;
-      15|back|b)
+      16|back|b)
         return 0
         ;;
       *)
@@ -360,6 +364,30 @@ menu_settings() {
         ;;
     esac
   done
+}
+
+menu_bootstrap() {
+  clear_screen
+  show_header
+  printf '\nBootstrap\n'
+  printf 'This copies the toolkit into .githooks/ (self-contained repo).\n'
+
+  if confirm 'Overwrite existing .githooks toolkit? (--force)' 'n'; then
+    _force=1
+  else
+    _force=0
+  fi
+
+  set -- bootstrap
+  if [ "${_force}" -eq 1 ]; then
+    set -- "$@" --force
+  fi
+  if [ "${DRY_RUN}" -eq 1 ]; then
+    set -- --dry-run "$@"
+  fi
+
+  _display=$(format_cmd githooks "$@")
+  run_cmd "${_display}" "${INSTALL_SH}" "$@"
 }
 
 menu_install() {
@@ -806,6 +834,7 @@ At a high level:
      in lexical (sorted) order.
 
 Common beginner workflow:
+  - Bootstrap (optional, vendors the toolkit into .githooks/)
   - Install (creates runner + stubs + hook directories)
   - Stage examples (copies ready-made hook parts into the right hook slots)
   - Hooks list / Stage list to inspect what is active
@@ -817,6 +846,9 @@ EOF
       2|files|installed)
         help_page 'What gets installed (files)' 3<<'EOF'
 The toolkit installs/uses a few key things:
+
+0) Bootstrap (optional)
+   - Copies the toolkit into `.githooks/` so the repo is self-contained.
 
 1) Runner
    - A shared runner script that orchestrates hook execution.
@@ -903,6 +935,9 @@ Install:
   Creates/refreshes the runner and stubs for selected hooks, and ensures hook
   part directories exist.
 
+Bootstrap:
+  Copies the toolkit into `.githooks/` so the repo can run the CLI/TUI locally.
+
 Update:
   Refreshes already-installed assets (runner/stubs) and re-syncs staged parts
   that have a known source (examples/ or hooks/).
@@ -943,42 +978,46 @@ main_menu() {
     clear_screen
     show_header
     printf '\nMain Menu\n'
-    printf '1) Install\n'
-    printf '2) Update\n'
-    printf '3) Stage\n'
-    printf '4) Hooks\n'
-    printf '5) Config\n'
-    printf '6) Uninstall\n'
-    printf '7) Help\n'
-    printf '8) Settings\n'
-    printf '9) Exit\n'
+    printf '1) Bootstrap\n'
+    printf '2) Install\n'
+    printf '3) Update\n'
+    printf '4) Stage\n'
+    printf '5) Hooks\n'
+    printf '6) Config\n'
+    printf '7) Uninstall\n'
+    printf '8) Help\n'
+    printf '9) Settings\n'
+    printf '10) Exit\n'
     _choice=$(prompt 'Select option')
     case "${_choice}" in
-      1|install)
+      1|bootstrap)
+        menu_bootstrap
+        ;;
+      2|install)
         menu_install
         ;;
-      2|update)
+      3|update)
         menu_update
         ;;
-      3|stage)
+      4|stage)
         menu_stage
         ;;
-      4|hooks)
+      5|hooks)
         menu_hooks
         ;;
-      5|config)
+      6|config)
         menu_config
         ;;
-      6|uninstall)
+      7|uninstall)
         menu_uninstall
         ;;
-      7|help)
+      8|help)
         menu_help
         ;;
-      8|settings)
+      9|settings)
         menu_settings
         ;;
-      9|exit|quit|q)
+      10|exit|quit|q)
         printf 'Goodbye.\n'
         exit 0
         ;;

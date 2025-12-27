@@ -97,7 +97,7 @@ test_version_matches_installer() {
 
 test_menu_accepts_carriage_return() {
   TEST_FAILURE_DIAG=''
-  output=$(printf '9\r\n' | "${TUI}" 2>/dev/null || true)
+  output=$(printf '10\r\n' | "${TUI}" 2>/dev/null || true)
   printf '%s' "$output" | grep -q 'Goodbye.' || {
     TEST_FAILURE_DIAG='menu did not accept carriage-return input to exit'
     return 1
@@ -107,7 +107,7 @@ test_menu_accepts_carriage_return() {
 
 test_help_pages_do_not_exit_early() {
   TEST_FAILURE_DIAG=''
-  output=$(printf '7\n1\n\n8\n9\n' | "${TUI}" 2>/dev/null || true)
+  output=$(printf '8\n1\n\n8\n10\n' | "${TUI}" 2>/dev/null || true)
   printf '%s' "$output" | grep -q 'Quick start (beginner)' || {
     TEST_FAILURE_DIAG='quick start help page did not render'
     return 1
@@ -142,7 +142,7 @@ test_tui_targets_cwd_repo() {
   git -C "${repo_dir}" commit -q -m 'feat: seed repo'
 
   # Drive the install flow using defaults, then exit.
-  tui_input=$(printf '1\n\n\n\n\n9\n')
+  tui_input=$(printf '2\n\n\n\n\n10\n')
   printf '%s' "${tui_input}" | (cd "${repo_dir}" && "${TUI}" >/dev/null 2>&1 || true)
 
   if [ ! -f "${repo_dir}/.git/hooks/_runner.sh" ]; then
@@ -155,12 +155,54 @@ test_tui_targets_cwd_repo() {
   return 0
 }
 
-tap_plan 5
+test_tui_bootstrap_vendors_toolkit() {
+  TEST_FAILURE_DIAG=''
+  base_tmp=${TMPDIR:-/tmp}
+  sandbox=$(mktemp -d "${base_tmp%/}/tui-bootstrap.XXXXXX") || {
+    TEST_FAILURE_DIAG='failed to create sandbox'
+    return 1
+  }
+  repo_dir="${sandbox}/repo"
+  home_dir="${sandbox}/home"
+  mkdir -p "${repo_dir}" "${home_dir}"
+
+  if ! git -C "${repo_dir}" init -q; then
+    TEST_FAILURE_DIAG='git init failed for sandbox'
+    rm -rf "${sandbox}"
+    return 1
+  fi
+  git -C "${repo_dir}" config user.name 'TUI Tester'
+  git -C "${repo_dir}" config user.email 'tui@example.invalid'
+  printf 'seed\n' >"${repo_dir}/README.md"
+  git -C "${repo_dir}" add README.md
+  git -C "${repo_dir}" commit -q -m 'feat: seed repo'
+
+  tui_input=$(printf '1\n\n\n\n10\n')
+  printf '%s' "${tui_input}" | (cd "${repo_dir}" && "${TUI}" >/dev/null 2>&1 || true)
+
+  if [ ! -x "${repo_dir}/.githooks/tui/githooks-tui.sh" ]; then
+    TEST_FAILURE_DIAG='bootstrap did not vendor the TUI into .githooks'
+    rm -rf "${sandbox}"
+    return 1
+  fi
+
+  if [ -e "${repo_dir}/.git/hooks/_runner.sh" ]; then
+    TEST_FAILURE_DIAG='bootstrap unexpectedly installed hook runner stubs'
+    rm -rf "${sandbox}"
+    return 1
+  fi
+
+  rm -rf "${sandbox}"
+  return 0
+}
+
+tap_plan 6
 run_test 'TUI help output includes header and usage' test_help_output
 run_test 'TUI --version matches installer version' test_version_matches_installer
 run_test 'TUI accepts carriage-return input for menu selection' test_menu_accepts_carriage_return
 run_test 'TUI help pages return to menus' test_help_pages_do_not_exit_early
 run_test 'TUI runs install commands in the current working directory' test_tui_targets_cwd_repo
+run_test 'TUI bootstrap vendors the toolkit into the repo' test_tui_bootstrap_vendors_toolkit
 
 if [ "$FAIL" -ne 0 ]; then
   exit 1
