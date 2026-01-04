@@ -61,6 +61,9 @@ graph TD
 
 ### Brand‑new repo flow (quick visual)
 
+At a high level the flow is always:
+**Install hooks → Stage hook parts → Configure (optional) → Commit .githooks (standard only)**.
+
 This diagram shows the recommended flow for a brand‑new repository, split by **standard (versioned)** vs **ephemeral** installs:
 
 ```mermaid
@@ -68,14 +71,15 @@ flowchart TD
   A["New repo (git init)"] --> B["Bootstrap toolkit into .githooks/"]
   B --> C["Install hooks (stubs + runner)"]
   C --> D["Stage examples or your own parts"]
-  D --> E["Commit .githooks/ (standard mode)"]
+  D --> G["Configure any hook configs"]
+  G --> E["Commit .githooks/ (standard mode)"]
 
   A --> F["Install hooks in Ephemeral Mode (no tracked files)"]
   F --> D
 
   classDef standard fill:#f6f6f6,stroke:#9aa0a6,stroke-width:1px
   classDef ephemeral fill:#eef6ff,stroke:#6aa0ff,stroke-width:1px
-  class B,C,D,E standard
+  class B,C,D,G,E standard
   class F ephemeral
 ```
 
@@ -357,9 +361,13 @@ For a high-level summary of hooks, stubs, and part counts, run:
 
 All of these commands accept `-n/--dry-run` so you can preview actions before making changes.
 
-### Refreshing toolkit assets
+### Refreshing toolkit assets (when to use `update`)
 
-After pulling new versions of the toolkit (or tweaking example scripts locally), run the `update` subcommand to rewrite the shared runner, refresh managed stubs, and restage any example-based parts in place:
+Run `update` when the toolkit itself changes (e.g., you pulled a newer `git-hooks-runner-toolkit` or edited files under `.githooks/lib/`, `examples/`, or `hooks/`) and you want those managed assets re-copied into the active hook locations. It **does not** overwrite custom parts that don’t match a known source.
+
+In other words, `update` is for refreshing **toolkit-managed** files (runner, stubs, and example-based staged parts), not for day‑to‑day hook execution.
+
+Use it like this:
 
 ```bash
 .githooks/install.sh update            # standard installs
