@@ -10,3 +10,51 @@
   commands:
     - "npm run lint-configs"
   continue_on_error: true
+
+# -----------------------------------------------------------------------------
+# AI CLI examples
+# These show headless / non-interactive CLI calls you can wire into hooks.
+# If you want a rule to run only for pre-commit or post-merge, gate on
+# GITHOOKS_HOOK_NAME inside the command (see the first commented command).
+# -----------------------------------------------------------------------------
+# - name: ai pre-commit review (choose one CLI)
+#   patterns:
+#     - "**/*.{ts,tsx,js,jsx,py,go,rs}"
+#   commands:
+#     # Optional gating: only run during pre-commit.
+#     - "test \"${GITHOOKS_HOOK_NAME}\" = pre-commit || exit 0"
+#     # OpenAI Codex CLI (non-interactive exec). Optional: --model/-m, --profile, --sandbox.
+#     - "codex exec --model gpt-5-codex 'Review staged changes in this repo and output PASS or FAIL.'"
+#     # Anthropic Claude Code CLI (print mode). Optional: --output-format json, --permission-mode acceptEdits.
+#     - "claude -p --output-format json 'Review staged changes in this repo and output PASS or FAIL.'"
+#     # Google Gemini CLI (headless). Optional: --output-format json, --model, --approval-mode auto_edit.
+#     - "git diff --cached | gemini -p 'Review the staged diff for bugs or secrets. Output PASS or FAIL.'"
+#     # Qwen Code CLI (headless). Optional: --prompt/-p.
+#     - "git diff --cached | qwen -p 'Review the staged diff for bugs or secrets. Output PASS or FAIL.'"
+#     # Factory Droid exec (headless). Optional: --auto low|medium|high, --output-format text|json.
+#     - "git diff --cached | droid exec --auto low --output-format text 'Review the staged diff for bugs or secrets. Output PASS or FAIL.'"
+#     # OpenCode CLI (headless). Optional: --attach http://localhost:4096.
+#     - "opencode run 'Review staged changes in this repo and output PASS or FAIL.'"
+#     # Aider CLI (single-message). Optional: --message-file, --model.
+#     - "aider --message 'Review staged changes in this repo and output PASS or FAIL.'"
+#     # Amp CLI (interactive). Use if your version supports non-interactive prompts.
+#     - "amp"
+
+# - name: ai post-merge summary (choose one CLI)
+#   patterns:
+#     - "**/*"
+#   commands:
+#     # Optional gating: only run during post-merge.
+#     - "test \"${GITHOOKS_HOOK_NAME}\" = post-merge || exit 0"
+#     # OpenAI Codex CLI: write a summary artifact for the merge.
+#     - "mkdir -p .git/ai && codex exec 'Summarize the latest merge in this repo and list key files touched.' > .git/ai/last-merge-summary.md"
+#     # Anthropic Claude Code CLI
+#     - "mkdir -p .git/ai && claude -p 'Summarize the latest merge in this repo and list key files touched.' > .git/ai/last-merge-summary.md"
+#     # Google Gemini CLI
+#     - "mkdir -p .git/ai && git log -1 --name-status | gemini -p 'Summarize the merge and list key files touched.' > .git/ai/last-merge-summary.md"
+#     # Qwen Code CLI
+#     - "mkdir -p .git/ai && git log -1 --name-status | qwen -p 'Summarize the merge and list key files touched.' > .git/ai/last-merge-summary.md"
+#     # Factory Droid exec
+#     - "mkdir -p .git/ai && git log -1 --name-status | droid exec --auto low 'Summarize the merge and list key files touched.' > .git/ai/last-merge-summary.md"
+#     # OpenCode CLI
+#     - "mkdir -p .git/ai && opencode run 'Summarize the latest merge in this repo and list key files touched.' > .git/ai/last-merge-summary.md"

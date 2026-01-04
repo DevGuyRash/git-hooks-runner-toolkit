@@ -343,6 +343,26 @@ examples; mix and match as needed.
   continue_on_error: true
 ```
 
+### AI CLI Hooks (pre-commit + post-merge)
+
+```yaml
+- name: ai pre-commit review (example)
+  patterns:
+    - "**/*.{ts,tsx,js,jsx,py,go,rs}"
+  commands:
+    - "test \"${GITHOOKS_HOOK_NAME}\" = pre-commit || exit 0"
+    - "codex exec --model gpt-5-codex 'Review staged changes in this repo and output PASS or FAIL.'"
+- name: ai post-merge summary (example)
+  patterns:
+    - "**/*"
+  commands:
+    - "test \"${GITHOOKS_HOOK_NAME}\" = post-merge || exit 0"
+    - "mkdir -p .git/ai && droid exec --auto low 'Summarize the latest merge in this repo and list key files touched.' > .git/ai/last-merge-summary.md"
+```
+
+See `examples/config/watch-configured-actions.yml` for a larger commented catalog
+of AI CLI variants to swap into these rules.
+
 These samples are all valid alongside the core schema described earlier.
 Adjust command lists, glob patterns, and binary names to match your project
 layout and tooling.
