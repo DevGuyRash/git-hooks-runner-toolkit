@@ -837,7 +837,11 @@ Common beginner workflow:
   - Bootstrap (optional, vendors the toolkit into .githooks/)
   - Install (creates runner + stubs + hook directories)
   - Stage examples (copies ready-made hook parts into the right hook slots)
+  - Configure any hook configs (edit <hooks-root>/config/*.yml if staged examples installed them)
   - Hooks list / Stage list to inspect what is active
+  - Update (later, to refresh managed assets)
+  - Uninstall (when retiring hooks)
+  - Commit .githooks/ (standard installs only)
 
 Safe exploration:
   - Enable "dry-run" in Settings to preview filesystem changes without applying.
@@ -931,6 +935,10 @@ EOF
         ;;
       6|menus|what)
         help_page 'What each menu does' 3<<'EOF'
+Typical flow:
+  Bootstrap (optional) -> Install -> Stage -> Configure (edit config files) -> Hooks (inspect) -> Update (later) -> Uninstall (when done)
+  Commit .githooks/ only for standard installs.
+
 Install:
   Creates/refreshes the runner and stubs for selected hooks, and ensures hook
   part directories exist.
@@ -939,8 +947,7 @@ Bootstrap:
   Copies the toolkit into `.githooks/` so the repo can run the CLI/TUI locally.
 
 Update:
-  Refreshes already-installed assets (runner/stubs) and re-syncs staged parts
-  that have a known source (examples/ or hooks/).
+  Refreshes already-installed assets (runner/stubs) and re-syncs staged parts that have a known source (examples/ or hooks/). Use it after you pull new toolkit changes or edit example scripts; it does not overwrite custom parts.
 
 Stage:
   Add / remove hook parts in `<hooks-root>/<hook>.d/`.
@@ -948,6 +955,8 @@ Stage:
   - Unstage: reverse "Add" for scripts that match the source.
   - Remove: delete a specific staged part or all parts for one hook.
   - List: show what parts are currently staged.
+  Note: some examples also install configs under `<hooks-root>/config/` for you
+  to edit after staging.
 
 Hooks:
   Summary view: which hooks have stubs installed, and how many parts exist.

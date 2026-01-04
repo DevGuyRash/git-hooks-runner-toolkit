@@ -72,6 +72,10 @@ DESCRIPTION
     `githooks uninstall --mode ephemeral --dry-run` to preview manifest-guided
     cleanup before making changes.
 
+TYPICAL FLOW
+    bootstrap (optional) -> install -> stage add -> configure hook configs -> hooks list (optional) -> update (as needed) -> uninstall (when retiring hooks)
+    For standard installs, commit .githooks/ after you are happy with the setup. For Ephemeral Mode, skip the commit step and edit configs under .git/.githooks/config instead.
+
 GLOBAL OPTIONS
     -h, --help
         Show this overview or, when combined with a command, print its manual.
@@ -1295,6 +1299,8 @@ DESCRIPTION
     This command does not vendor the toolkit itself. Run `githooks bootstrap`
     first if you want a self-contained `.githooks/` copy (including the TUI).
 
+    Typical flow is: install -> stage add -> configure any hook configs -> hooks list (optional). Update later to refresh managed assets; uninstall when you want to remove managed stubs and runner assets.
+
     When invoked with `--mode ephemeral`, the runner and stubs live under
     .git/.githooks/, leaving repository history untouched while persisting
     across pulls and resets. The installer records manifest metadata so future
@@ -1422,6 +1428,8 @@ DESCRIPTION
     basenames match entries under `examples/` or `hooks/`. Custom scripts that
     do not have a matching source are left untouched.
 
+    Use update after pulling a new version of the toolkit or editing files under .githooks/lib/, examples/, or hooks/. It refreshes only managed assets (runner, stubs, and example-based parts), not arbitrary custom scripts.
+
     When Ephemeral Mode is active, supply `--mode ephemeral` (or rely on the
     manifest) to refresh the assets stored under `.git/.githooks/`.
 
@@ -1474,6 +1482,10 @@ DESCRIPTION
     The stage family copies executable scripts into .githooks/<hook>.d based on
     metadata comments or directory structure. Use `githooks stage help <topic>`
     for detailed guidance on each operation.
+
+    Stage is typically run after `githooks install`. Some staged examples also
+    install configuration files under <hooks-root>/config/, which you should
+    edit after staging to match your repository.
 
 SUBCOMMANDS
     add     Plan and copy scripts from directories into managed hook slots.
