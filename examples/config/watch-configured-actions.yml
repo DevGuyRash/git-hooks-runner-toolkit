@@ -23,8 +23,10 @@
 #   commands:
 #     # Optional gating: only run during pre-commit.
 #     - "test \"${GITHOOKS_HOOK_NAME}\" = pre-commit || exit 0"
+#     # Wrapper: convert PASS/FAIL output to an exit code (copy to ./scripts if desired).
+#     - "./examples/scripts/exit-code-from-output.sh --fail 'FAIL' --pass 'PASS' -- codex exec --model gpt-5.2-codex 'Review staged changes in this repo and output PASS or FAIL.'"
 #     # OpenAI Codex CLI (non-interactive exec). Optional: --model/-m, --profile, --sandbox.
-#     - "codex exec --model gpt-5-codex 'Review staged changes in this repo and output PASS or FAIL.'"
+#     - "codex exec --model gpt-5.2-codex 'Review staged changes in this repo and output PASS or FAIL.'"
 #     # Anthropic Claude Code CLI (print mode). Optional: --output-format json, --permission-mode acceptEdits.
 #     - "claude -p --output-format json 'Review staged changes in this repo and output PASS or FAIL.'"
 #     # Google Gemini CLI (headless). Optional: --output-format json, --model, --approval-mode auto_edit.

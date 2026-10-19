@@ -351,13 +351,26 @@ examples; mix and match as needed.
     - "**/*.{ts,tsx,js,jsx,py,go,rs}"
   commands:
     - "test \"${GITHOOKS_HOOK_NAME}\" = pre-commit || exit 0"
-    - "codex exec --model gpt-5-codex 'Review staged changes in this repo and output PASS or FAIL.'"
+    - "codex exec --model gpt-5.2-codex 'Review staged changes in this repo and output PASS or FAIL.'"
 - name: ai post-merge summary (example)
   patterns:
     - "**/*"
   commands:
     - "test \"${GITHOOKS_HOOK_NAME}\" = post-merge || exit 0"
     - "mkdir -p .git/ai && droid exec --auto low 'Summarize the latest merge in this repo and list key files touched.' > .git/ai/last-merge-summary.md"
+```
+
+If your AI CLI does not set exit codes, wrap it with the POSIX helper in
+`examples/scripts/exit-code-from-output.sh` (copy it into your repo, e.g.
+`./scripts/exit-code-from-output.sh`), then call it from the config:
+
+```yaml
+- name: ai pre-commit review (exit-code wrapper)
+  patterns:
+    - "**/*.{ts,tsx,js,jsx,py,go,rs}"
+  commands:
+    - "test \"${GITHOOKS_HOOK_NAME}\" = pre-commit || exit 0"
+    - "./scripts/exit-code-from-output.sh --fail 'FAIL' --pass 'PASS' -- codex exec --model gpt-5.2-codex 'Review staged changes in this repo and output PASS or FAIL.'"
 ```
 
 See `examples/config/watch-configured-actions.yml` for a larger commented catalog
