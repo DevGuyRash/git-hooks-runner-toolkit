@@ -2,6 +2,28 @@
 # Ephemeral overlay root resolution helpers. Determine hook part search roots
 # and precedence using config overrides without mutating repository state.
 
+ephemeral_precedence_mode() {
+  if [ -n "${GITHOOKS_EPHEMERAL_PRECEDENCE:-}" ]; then
+    printf '%s\n' "${GITHOOKS_EPHEMERAL_PRECEDENCE}"
+    return 0
+  fi
+  _ephemeral_config=$(git config --local --get githooks.ephemeral.precedence 2>/dev/null || true)
+  if [ -n "${_ephemeral_config}" ]; then
+    printf '%s\n' "${_ephemeral_config}"
+    return 0
+  fi
+  # Read only the enum, never source the mutable manifest as shell code.
+  _ephemeral_saved_mode=$(sed -n "s/^PRECEDENCE_MODE='\\([^']*\\)'$/\\1/p" \
+    "$(ephemeral_root_dir)/manifest.sh" 2>/dev/null || true)
+  case "${_ephemeral_saved_mode}" in
+    ephemeral-first|versioned-first|merge)
+      printf '%s\n' "${_ephemeral_saved_mode}"
+      return 0
+      ;;
+  esac
+  printf '%s\n' 'ephemeral-first'
+}
+
 ephemeral_overlay_trim() {
   _ephemeral_trim_value=${1-}
   printf "%s" "${_ephemeral_trim_value}" | sed -e "s/^[[:space:]]*//" -e "s/[[:space:]]*$//"
@@ -13,19 +35,13 @@ ephemeral_overlay_list_contains() {
   if [ -z "${_ephemeral_list}" ]; then
     return 1
   fi
-  _ephemeral_list=$(printf '%b' "${_ephemeral_list}")
-  _ephemeral_saved_ifs=${IFS}
-  IFS="\n"
-  set -f
-  for _ephemeral_item in ${_ephemeral_list}; do
+  while IFS= read -r _ephemeral_item; do
     if [ "${_ephemeral_item}" = "${_ephemeral_seek}" ]; then
-      IFS=${_ephemeral_saved_ifs}
-      set +f
       return 0
     fi
-  done
-  set +f
-  IFS=${_ephemeral_saved_ifs}
+  done <<EOF
+${_ephemeral_list}
+EOF
   return 1
 }
 
@@ -42,7 +58,8 @@ ephemeral_overlay_append_unique() {
   if [ -z "${_ephemeral_current}" ]; then
     eval "${_ephemeral_var}=\"\${_ephemeral_value}\""
   else
-    eval "${_ephemeral_var}=\"\${_ephemeral_current}\\n\${_ephemeral_value}\""
+    eval "${_ephemeral_var}=\"\${_ephemeral_current}
+\${_ephemeral_value}\""
   fi
 }
 
@@ -76,19 +93,16 @@ ephemeral_overlay_parse_and_append() {
     return 0
   fi
   _ephemeral_normalised=$(printf "%s" "${_ephemeral_input}" | tr ,: "\n")
-  _ephemeral_saved_ifs=${IFS}
-  IFS="\n"
-  set -f
-  for _ephemeral_candidate in ${_ephemeral_normalised}; do
+  while IFS= read -r _ephemeral_candidate; do
     _ephemeral_candidate_trimmed=$(ephemeral_overlay_trim "${_ephemeral_candidate}")
     if [ -z "${_ephemeral_candidate_trimmed}" ]; then
       continue
     fi
     _ephemeral_abs=$(ephemeral_overlay_absolute_path "${_ephemeral_candidate_trimmed}")
     ephemeral_overlay_append_unique "${_ephemeral_target}" "${_ephemeral_abs}"
-  done
-  set +f
-  IFS=${_ephemeral_saved_ifs}
+  done <<EOF
+${_ephemeral_normalised}
+EOF
 }
 
 ephemeral_overlay_extra_roots() {
@@ -150,15 +164,11 @@ ephemeral_overlay_resolve_roots() {
 
   _ephemeral_extra=$(ephemeral_overlay_extra_roots)
   if [ -n "${_ephemeral_extra}" ]; then
-    _ephemeral_extra=$(printf '%b' "${_ephemeral_extra}")
-    _ephemeral_saved_ifs=${IFS}
-    IFS="\n"
-    set -f
-    for _ephemeral_additional in ${_ephemeral_extra}; do
+    while IFS= read -r _ephemeral_additional; do
       ephemeral_overlay_consider_root _ephemeral_resolved "${_ephemeral_additional}"
-    done
-    set +f
-    IFS=${_ephemeral_saved_ifs}
+    done <<EOF
+${_ephemeral_extra}
+EOF
   fi
 
   printf "%s\n" "${_ephemeral_resolved}"
@@ -170,13 +180,8 @@ ephemeral_overlay_roots_serialized() {
     printf "%s\n" ""
     return 0
   fi
-  _ephemeral_roots=$(printf '%b' "${_ephemeral_roots}")
   _ephemeral_serial=""
-  _ephemeral_saved_ifs=${IFS}
-  _ephemeral_newline=$(printf '\n_')
-  IFS=${_ephemeral_newline%_}
-  set -f
-  for _ephemeral_entry in ${_ephemeral_roots}; do
+  while IFS= read -r _ephemeral_entry; do
     if [ -z "${_ephemeral_entry}" ]; then
       continue
     fi
@@ -185,9 +190,9 @@ ephemeral_overlay_roots_serialized() {
     else
       _ephemeral_serial="${_ephemeral_serial}:${_ephemeral_entry}"
     fi
-  done
-  set +f
-  IFS=${_ephemeral_saved_ifs}
+  done <<EOF
+${_ephemeral_roots}
+EOF
   printf "%s\n" "${_ephemeral_serial}"
 }
 
@@ -202,10 +207,9 @@ ephemeral_overlay_log_roots() {
     githooks_log_info "Ephemeral overlay order (${_ephemeral_mode}): <none>"
     return 0
   fi
-  _ephemeral_logged_roots=$(printf '%b' "${_ephemeral_logged_roots}")
   githooks_log_info "Ephemeral overlay order (${_ephemeral_mode}):"
   _ephemeral_index=0
-  printf '%b' "${_ephemeral_logged_roots}\n" | while IFS= read -r _ephemeral_logged || [ -n "${_ephemeral_logged}" ]; do
+  printf '%s\n' "${_ephemeral_logged_roots}" | while IFS= read -r _ephemeral_logged || [ -n "${_ephemeral_logged}" ]; do
     [ -n "${_ephemeral_logged}" ] || continue
     _ephemeral_index=$((_ephemeral_index + 1))
     if [ -d "${_ephemeral_logged}" ]; then

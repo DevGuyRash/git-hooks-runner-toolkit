@@ -56,18 +56,6 @@ ephemeral_hooks_path_absolute() {
   printf '%s/.githooks\n' "${_ephemeral_git_dir%/}"
 }
 
-ephemeral_precedence_mode() {
-  if [ -n "${GITHOOKS_EPHEMERAL_PRECEDENCE:-}" ]; then
-    printf '%s\n' "${GITHOOKS_EPHEMERAL_PRECEDENCE}"
-    return 0
-  fi
-  _ephemeral_config=$(git config --local --get githooks.ephemeral.precedence 2>/dev/null || true)
-  if [ -n "${_ephemeral_config}" ]; then
-    printf '%s\n' "${_ephemeral_config}"
-    return 0
-  fi
-  printf '%s\n' 'ephemeral-first'
-}
 
 ephemeral_manifest_roots() {
   if command -v ephemeral_overlay_roots_serialized >/dev/null 2>&1; then
@@ -205,6 +193,7 @@ ephemeral_copy_runner_assets() {
   _ephemeral_runner_src="$(ephemeral_toolkit_root)/_runner.sh"
   _ephemeral_common_src="$(ephemeral_toolkit_root)/lib/common.sh"
   _ephemeral_watch_src="$(ephemeral_toolkit_root)/lib/watch-configured-actions.sh"
+  _ephemeral_overlay_src="$(ephemeral_toolkit_root)/lib/ephemeral_overlay.sh"
   if [ ! -f "${_ephemeral_runner_src}" ]; then
     githooks_die "Missing runner source at ${_ephemeral_runner_src}"
   fi
@@ -214,15 +203,20 @@ ephemeral_copy_runner_assets() {
   if [ ! -f "${_ephemeral_watch_src}" ]; then
     githooks_die "Missing watch-configured-actions library at ${_ephemeral_watch_src}"
   fi
+  if [ ! -f "${_ephemeral_overlay_src}" ]; then
+    githooks_die "Missing overlay library at ${_ephemeral_overlay_src}"
+  fi
   ephemeral_prepare_directory "${_ephemeral_root}"
   ephemeral_prepare_directory "${_ephemeral_lib_dir}"
   _ephemeral_runner_dst="${_ephemeral_root%/}/_runner.sh"
   _ephemeral_common_dst="${_ephemeral_lib_dir%/}/common.sh"
   _ephemeral_watch_dst="${_ephemeral_lib_dir%/}/watch-configured-actions.sh"
+  _ephemeral_overlay_dst="${_ephemeral_lib_dir%/}/ephemeral_overlay.sh"
   if ephemeral_in_dry_run; then
     githooks_log_info "DRY-RUN: copy runner to ${_ephemeral_runner_dst}"
     githooks_log_info "DRY-RUN: copy library to ${_ephemeral_common_dst}"
     githooks_log_info "DRY-RUN: copy watch-configured-actions library to ${_ephemeral_watch_dst}"
+    githooks_log_info "DRY-RUN: copy overlay library to ${_ephemeral_overlay_dst}"
     return 0
   fi
   githooks_copy_file "${_ephemeral_runner_src}" "${_ephemeral_runner_dst}"
@@ -231,6 +225,8 @@ ephemeral_copy_runner_assets() {
   githooks_chmod 644 "${_ephemeral_common_dst}"
   githooks_copy_file "${_ephemeral_watch_src}" "${_ephemeral_watch_dst}"
   githooks_chmod 644 "${_ephemeral_watch_dst}"
+  githooks_copy_file "${_ephemeral_overlay_src}" "${_ephemeral_overlay_dst}"
+  githooks_chmod 644 "${_ephemeral_overlay_dst}"
 }
 
 ephemeral_write_stub() {
