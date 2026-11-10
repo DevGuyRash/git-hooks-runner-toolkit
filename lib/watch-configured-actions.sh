@@ -34,9 +34,12 @@ watch_actions_init() {
   WATCH_ACTIONS_RULE_CONTINUES_FILE=$(mktemp "${TMPDIR:-/tmp}/githooks-watch-continues.XXXXXX") || \
     githooks_die "Failed to allocate rule continues log"
 
+  WATCH_ACTIONS_RULE_ENCODINGS_FILE=$(mktemp "${TMPDIR:-/tmp}/githooks-watch-encodings.XXXXXX") || \
+    githooks_die "Failed to allocate rule encodings log"
+
   WATCH_ACTIONS_TEMPFILES="${WATCH_ACTIONS_CHANGED_FILE_LOG} ${WATCH_ACTIONS_TRIGGER_LOG} \
 ${WATCH_ACTIONS_RULE_NAMES_FILE} ${WATCH_ACTIONS_RULE_PATTERNS_FILE} \
-${WATCH_ACTIONS_RULE_COMMANDS_FILE} ${WATCH_ACTIONS_RULE_CONTINUES_FILE}"
+${WATCH_ACTIONS_RULE_COMMANDS_FILE} ${WATCH_ACTIONS_RULE_CONTINUES_FILE} ${WATCH_ACTIONS_RULE_ENCODINGS_FILE}"
 
   WATCH_ACTIONS_RULE_COUNT=0
   WATCH_ACTIONS_TRIGGERED=0
@@ -140,7 +143,7 @@ watch_actions_pattern_to_regex() {
 }
 
 watch_actions_append_rule() {
-  if [ "$#" -ne 4 ]; then
+  if [ "$#" -lt 4 ] || [ "$#" -gt 5 ]; then
     return 1
   fi
   WATCH_ACTIONS_RULE_COUNT=$((WATCH_ACTIONS_RULE_COUNT + 1))
@@ -148,6 +151,7 @@ watch_actions_append_rule() {
   printf '%s\n' "$2" >>"${WATCH_ACTIONS_RULE_PATTERNS_FILE}"
   printf '%s\n' "$3" >>"${WATCH_ACTIONS_RULE_COMMANDS_FILE}"
   printf '%s\n' "$4" >>"${WATCH_ACTIONS_RULE_CONTINUES_FILE}"
+  printf '%s\n' "${5:-inline}" >>"${WATCH_ACTIONS_RULE_ENCODINGS_FILE}"
 }
 
 watch_actions_record_trigger() {
@@ -288,7 +292,7 @@ watch_actions_parse_rule_line() {
     true|1|yes|on) continue_flag=true ;;
     *) continue_flag=false ;;
   esac
-  watch_actions_append_rule "${name}" "${patterns}" "${commands}" "${continue_flag}"
+  watch_actions_append_rule "${name}" "${patterns}" "${commands}" "${continue_flag}" base64
   return 0
 }
 
@@ -313,13 +317,11 @@ watch_actions_load_config_rules() {
         WATCH_ACTIONS_CONFIG_LOAD_DIAG="missing-yq"
         return 2
       fi
-      yaml_filter='.[] | [ (.name // ""), ((.patterns // []) | join("\u001e")), ((.commands // []) | join("\u001f")), ((.continue_on_error // false) | tostring) ] | @tsv'
-      if ! config_lines=$(yq eval -r "${yaml_filter}" "${config_path}" 2>/dev/null); then
-        config_lines=$(yq -r "${yaml_filter}" "${config_path}" 2>/dev/null) || {
-          githooks_log_error "watch-configured-actions: failed to parse ${config_path}; see docs/examples/watch-configured-actions.md"
-          WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
-          return 1
-        }
+      # yq TSV escaping differs from jq; use it only as a YAML-to-JSON parser.
+      if ! config_json=$(yq eval -o=json '.' "${config_path}" 2>/dev/null); then
+        githooks_log_error "watch-configured-actions: failed to parse ${config_path}"
+        WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
+        return 1
       fi
       ;;
     json)
@@ -328,17 +330,47 @@ watch_actions_load_config_rules() {
         WATCH_ACTIONS_CONFIG_LOAD_DIAG="missing-jq"
         return 2
       fi
-      config_lines=$(jq -r '.[] | [ (.name // ""), ((.patterns // []) | join("\u001e")), ((.commands // []) | join("\u001f")), (.continue_on_error // false) ] | @tsv' "${config_path}" 2>/dev/null) || {
-        githooks_log_error "watch-configured-actions: failed to parse ${config_path}; see docs/examples/watch-configured-actions.md"
-        WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
-        return 1
-      }
+      config_json=$(cat "${config_path}") || return 1
       ;;
     *)
       githooks_log_warn "watch-configured-actions example: unsupported config extension for ${config_path}"
       return 1
       ;;
   esac
+
+  if ! command -v jq >/dev/null 2>&1; then
+    githooks_log_error "watch-configured-actions: jq is required for YAML and JSON configs"
+    WATCH_ACTIONS_CONFIG_LOAD_DIAG="missing-jq"
+    # YAML previously needed only yq. Do not silently bypass configured hooks
+    # when upgrading without this newly required normalizer.
+    return 1
+  fi
+  # Validate the entire document before appending rules. Commands are base64
+  # records, not shell text: quotes, tabs, newlines and backslashes survive the
+  # line-oriented storage without evaluation or TSV escape reinterpretation.
+  if ! config_lines=$(printf '%s\n' "${config_json}" | jq -rs '
+    def plain: type == "string" and (test("[\u0000-\u001f\u007f]") | not);
+    if length != 1 then error("expected one config document") else .[0] end
+    | if type != "array" then error("expected array of rules") else . end
+    | .[]
+    | if type != "object" then error("expected rule object") else . end
+    | (.name // "") as $name
+    | (.patterns // []) as $patterns
+    | (.commands // []) as $commands
+    | (.continue_on_error // false) as $continue
+    | if ($name | plain) and ($patterns | type == "array")
+         and ($patterns | all(.[]; plain))
+         and ($commands | type == "array")
+         and ($commands | all(.[]; type == "string" and (contains("\u0000") | not)))
+         and ($continue | type == "boolean")
+      then [$name, ($patterns | join("\u001e")),
+            ($commands | map(@base64) | join("\u001f")), ($continue | tostring)] | join("\t")
+      else error("invalid rule fields") end
+  '); then
+    githooks_log_error "watch-configured-actions: invalid config ${config_path}"
+    WATCH_ACTIONS_CONFIG_LOAD_DIAG="parse-error"
+    return 1
+  fi
 
   config_tmp=$(mktemp "${TMPDIR:-/tmp}/githooks-watch-config-lines.XXXXXX") || return 1
   printf '%s\n' "${config_lines}" >"${config_tmp}"
@@ -531,6 +563,7 @@ watch_actions_execute_rules() {
     pattern_set=$(sed -n "${index}p" "${WATCH_ACTIONS_RULE_PATTERNS_FILE}" 2>/dev/null || printf '')
     command_set=$(sed -n "${index}p" "${WATCH_ACTIONS_RULE_COMMANDS_FILE}" 2>/dev/null || printf '')
     continue_flag=$(sed -n "${index}p" "${WATCH_ACTIONS_RULE_CONTINUES_FILE}" 2>/dev/null || printf 'false')
+    command_encoding=$(sed -n "${index}p" "${WATCH_ACTIONS_RULE_ENCODINGS_FILE}" 2>/dev/null || printf 'inline')
     [ -n "${rule_name}" ] || rule_name="rule-${index}"
 
     match_count=0
@@ -597,7 +630,13 @@ watch_actions_execute_rules() {
     for command_entry in "$@"; do
       command_entry=$(watch_actions_trim "${command_entry}")
       [ -n "${command_entry}" ] || continue
-      command_entry=$(watch_actions_unescape_newlines "${command_entry}")
+      if [ "${command_encoding}" = base64 ]; then
+        # A sentinel protects trailing newlines from command substitution.
+        command_entry=$(printf '%s\n' "${command_entry}" | jq -Rrj '@base64d + "."') || return 1
+        command_entry=${command_entry%.}
+      else
+        command_entry=$(watch_actions_unescape_newlines "${command_entry}")
+      fi
       githooks_log_info "watch-configured-actions example: executing (${rule_name}) -> ${command_entry}"
     if sh -c "${command_entry}"; then
       :

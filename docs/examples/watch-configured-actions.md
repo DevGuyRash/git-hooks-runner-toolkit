@@ -132,7 +132,17 @@ continue_on_error=true
 ## Requirements
 
 - Git must be available (used to collect changed paths).
-- [`yq`](https://mikefarah.gitbook.io/yq/) for YAML configs, [`jq`](https://stedolan.github.io/jq/) for JSON.
+- [`jq`](https://jqlang.org/) for both JSON and YAML configs.
+- YAML additionally requires [Mike Farah `yq` v4](https://mikefarah.gitbook.io/yq/)
+  with `eval -o=json` support (not the Python tool with the same name). YAML is
+  converted to JSON before the common rule validation and serialization step.
+  A YAML config without jq fails the hook rather than silently bypassing its rules.
+- A config is one array of rule objects. Names and patterns cannot contain ASCII
+  control characters; commands must be strings without NUL. Commands preserve
+  quotes, backslashes, tabs and multiline shell text, and execute only after a
+  pattern matches. Invalid documents fail before any rules are registered.
+- Inline legacy rules retain their existing escaped-newline behavior. Config-file
+  commands instead follow JSON/YAML string semantics without a second escape pass.
 - Rules that run commands rely on those commands being available on `PATH`.
 
 ## Sample Config Library
