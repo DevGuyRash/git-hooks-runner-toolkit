@@ -448,7 +448,8 @@ stage_list_contains() {
   stage_list=$1
   stage_seek=$2
   stage_saved_ifs=$IFS
-  IFS=$' \t\n'
+  IFS=$(printf ' \t\n_')
+  IFS=${IFS%_}
   set -f
   set -- ${stage_list}
   set +f
