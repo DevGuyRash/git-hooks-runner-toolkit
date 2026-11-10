@@ -94,6 +94,19 @@ example_git_crypt_enforce_run() {
     fi
   fi
 
+  # This fixture tests the hook's blob-header policy, not git-crypt itself.
+  # Provide the prerequisite for both refusal and acceptance paths, independent
+  # of whether the host has git-crypt installed. Never invoke the real tool.
+  if [ "$rc" -eq 0 ]; then
+    mkdir -p "$repo/bin"
+    cat <<'SH' >"$repo/bin/git-crypt"
+#!/bin/sh
+# Presence-only stub: unexpected execution must fail, not simulate encryption.
+exit 99
+SH
+    chmod 755 "$repo/bin/git-crypt"
+  fi
+
   out="$repo/commit.out"
   err="$repo/commit.err"
 
@@ -101,9 +114,9 @@ example_git_crypt_enforce_run() {
     printf 'plain secret\n' >"$repo/secrets.env"
     ghr_git "$repo" "$home" add secrets.env
     commit_status=0
-    ghr_in_repo "$repo" "$home" git commit -m 'feat: add secret' >"$out" 2>"$err" || commit_status=$?
+    ghr_in_repo "$repo" "$home" PATH="$repo/bin:$PATH" git commit -m 'feat: add secret' >"$out" 2>"$err" || commit_status=$?
     if [ "$commit_status" -eq 0 ]; then
-      TEST_FAILURE_DIAG='commit unexpectedly succeeded without git-crypt'
+      TEST_FAILURE_DIAG='commit unexpectedly accepted a plaintext protected blob'
       rc=1
     else
       err_output=$(ghr_read_or_empty "$err")
@@ -115,15 +128,6 @@ example_git_crypt_enforce_run() {
   fi
 
   if [ "$rc" -eq 0 ]; then
-    mkdir -p "$repo/bin"
-    cat <<'SH' >"$repo/bin/git-crypt"
-#!/bin/sh
-if [ "$1" = 'status' ] && [ "$2" = '-f' ]; then
-  exit 0
-fi
-exit 0
-SH
-    chmod 755 "$repo/bin/git-crypt"
     printf '\000GITCRYPT\000payload\n' >"$repo/secrets.env"
     ghr_git "$repo" "$home" add secrets.env
     if ! ghr_in_repo "$repo" "$home" PATH="$repo/bin:$PATH" git commit -m 'feat: add encrypted secret'; then
@@ -133,6 +137,11 @@ SH
       log_subject=$(ghr_git "$repo" "$home" log -1 --pretty=%s)
       if [ "$log_subject" != 'feat: add encrypted secret' ]; then
         TEST_FAILURE_DIAG='latest commit subject mismatch'
+        rc=1
+      fi
+      committed_header=$(ghr_git "$repo" "$home" show HEAD:secrets.env | dd bs=10 count=1 2>/dev/null | od -An -t x1 | tr -d ' \n')
+      if [ "$committed_header" != '00474954435259505400' ]; then
+        TEST_FAILURE_DIAG='committed blob lost the test git-crypt header'
         rc=1
       fi
     fi
