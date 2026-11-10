@@ -60,10 +60,20 @@ if [ -z "${HOOK_NAME}" ]; then
 fi
 
 STDIN_FILE=$(mktemp "${TMPDIR:-/tmp}/githooks-stdin.XXXXXX") || exit 1
+PARTS_FILE=''
+RUNNER_ROOTS_FILE=''
+RUNNER_PART_LIST=''
 runner_cleanup() {
-  rm -f "${STDIN_FILE}"
+  for runner_temp_file in "${STDIN_FILE}" "${PARTS_FILE}" "${RUNNER_ROOTS_FILE}" "${RUNNER_PART_LIST}"; do
+    [ -z "${runner_temp_file}" ] || rm -f "${runner_temp_file}"
+  done
 }
-trap runner_cleanup EXIT HUP INT TERM
+trap runner_cleanup EXIT
+# A foreground part may finish before a POSIX shell processes the signal.
+# Stop dispatch afterward rather than treating cancellation as hook success.
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 cat >"${STDIN_FILE}" || true
 
