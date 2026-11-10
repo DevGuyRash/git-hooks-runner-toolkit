@@ -419,4 +419,4 @@ tap_plan "$TOTAL_TESTS"
 run_test 'update refreshes staged parts in standard mode' test_update_refreshes_standard_install
 run_test 'update refreshes staged parts in Ephemeral Mode' test_update_refreshes_ephemeral_install
 
-exit 0
+[ "$FAIL" -eq 0 ]
