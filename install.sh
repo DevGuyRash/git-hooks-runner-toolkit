@@ -3287,7 +3287,6 @@ cmd_uninstall_ephemeral() {
   fi
 
   EPHEMERAL_TARGET_PATH=$(ephemeral_hooks_path_absolute)
-  EPHEMERAL_PREVIOUS_CONFIG=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
 
   githooks_config_remove_all
 
@@ -3296,11 +3295,7 @@ cmd_uninstall_ephemeral() {
   if [ -n "${EPHEMERAL_TARGET_PATH}" ]; then
     githooks_log_info "Ephemeral Mode hooks path cleared: ${EPHEMERAL_TARGET_PATH}"
   fi
-  if [ -n "${EPHEMERAL_PREVIOUS_CONFIG}" ]; then
-    githooks_log_info "core.hooksPath restored to ${EPHEMERAL_PREVIOUS_CONFIG}"
-  else
-    githooks_log_info "core.hooksPath restored to repository default"
-  fi
+  githooks_log_info "core.hooksPath restored to its original local configuration"
 }
 
 cmd_help() {

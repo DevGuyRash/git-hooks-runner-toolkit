@@ -87,7 +87,24 @@ You can set the mode via:
 
 ## Lifecycle & Manifest
 
-On install, the toolkit captures and restores state **idempotently**:
+On the first install, the toolkit snapshots the repository-local `core.hooksPath`
+value and whether that key was set. Repeated installs and `update --mode ephemeral`
+preserve this original snapshot. Uninstall restores it, including an explicitly
+empty value. If no local key existed, uninstall removes the toolkit's override so
+Git can use the current global setting or its default hooks directory.
+
+A failed install or update restores the local setting from immediately before that
+operation, rather than prematurely restoring the original uninstall target.
+Uninstall restores configuration before deleting assets, so a locked Git config
+leaves the active runner and manifest available for a retry.
+
+Older manifests without `PREVIOUS_CORE_HOOKS_PATH_SET` remain supported: a nonempty
+saved path is restored, and an empty path is treated as unset. They cannot identify
+an originally explicit empty value. If an older reinstall has already overwritten
+the original path with `.git/.githooks`, that lost setting cannot be reconstructed;
+restore the known original path manually rather than guessing.
+
+The lifecycle is **idempotent**:
 
 ```mermaid
 graph TD
@@ -137,7 +154,8 @@ install.sh uninstall --mode ephemeral
 install.sh uninstall --mode ephemeral --dry-run
 ```
 
-The uninstall removes `.git/.githooks/`, restores the previous `core.hooksPath`, and deletes the manifest.
+The uninstall restores the original local `core.hooksPath` state, then removes
+`.git/.githooks/` and its manifest.
 
 ## Troubleshooting
 
@@ -161,10 +179,13 @@ The uninstall removes `.git/.githooks/`, restores the previous `core.hooksPath`,
   Check the manifest:
 
   ```bash
-  .git/.githooks/manifest.sh
+  cat .git/.githooks/manifest.sh
   ```
 
-  and re-run uninstall. If another tool changed `core.hooksPath`, simply re-run the ephemeral install to refresh stubs and precedence, then uninstall again.
+  Read `PREVIOUS_CORE_HOOKS_PATH` and `PREVIOUS_CORE_HOOKS_PATH_SET` as data; do
+  not execute the manifest. Fix any reported Git config write error before
+  retrying uninstall. Reinstall/update preserves the original snapshot, even if
+  another tool has since changed `core.hooksPath`.
 
 - **Bare repo behavior?**
   Supported. The ephemeral directory is provisioned inside the shared Git metadata area, and stubs are created accordingly.

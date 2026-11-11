@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- Preserve the original local `core.hooksPath` value and presence across repeated
+  ephemeral installs and updates, so uninstall restores default, inherited, custom,
+  and explicitly empty configurations correctly.
+- Roll back failed installs/updates to their immediate prior configuration, and
+  retain active hook assets when uninstall cannot restore a locked Git config.
+
 ### Added
 - Expanded CLI help to document Ephemeral Mode prerequisites, overlay
   precedence options, and uninstall behavior.

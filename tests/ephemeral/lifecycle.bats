@@ -53,10 +53,8 @@ teardown() {
   fi
 
   assert_manifest_value_equals MANAGED_HOOKS 'pre-commit'
-  previous=$(git_repo_manifest_value PREVIOUS_CORE_HOOKS_PATH || true)
-  if [ "${previous}" != '.git/.githooks' ]; then
-    bats_die "expected previous hooks path to remain .git/.githooks, got ${previous}"
-  fi
+  assert_manifest_value_equals PREVIOUS_CORE_HOOKS_PATH ''
+  assert_manifest_value_equals PREVIOUS_CORE_HOOKS_PATH_SET '0'
 
   assert_hooks_path_restored install-ephemeral '.git/.githooks'
   assert_overlay_precedence install-ephemeral 'ephemeral-first'
