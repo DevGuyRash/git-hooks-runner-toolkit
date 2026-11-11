@@ -82,7 +82,7 @@ ephemeral_lib_dir() {
 }
 
 ephemeral_current_hooks_path() {
-  git config --local --get core.hooksPath 2>/dev/null || true
+  git config --local --get core.hooksPath 2>/dev/null
 }
 
 ephemeral_shell_quote() {
@@ -107,11 +107,28 @@ ephemeral_manifest_get() {
   return 0
 }
 
+# Older manifests did not distinguish an unset local key from an empty value.
+# Retain their historical empty-means-unset interpretation, without recapturing
+# the active toolkit path on refresh. New manifests record presence explicitly.
+ephemeral_manifest_previous_hooks_path_set() {
+  if _ephemeral_saved_set=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH_SET); then
+    case ${_ephemeral_saved_set} in
+      0|1) printf '%s\n' "${_ephemeral_saved_set}" ;;
+      *) githooks_die 'Invalid PREVIOUS_CORE_HOOKS_PATH_SET in ephemeral manifest' ;;
+    esac
+  elif [ -n "${1-}" ]; then
+    printf '1\n'
+  else
+    printf '0\n'
+  fi
+}
+
 ephemeral_manifest_write() {
   _ephemeral_previous=$1
   _ephemeral_active=$2
   _ephemeral_hooks=$3
   _ephemeral_action=$4
+  _ephemeral_previous_set=$5
   _ephemeral_manifest=$(ephemeral_manifest_path)
   if ephemeral_in_dry_run; then
     githooks_log_info "DRY-RUN: write manifest ${_ephemeral_manifest}"
@@ -130,6 +147,7 @@ ephemeral_manifest_write() {
     printf 'INSTALL_MODE=%s\n' "'ephemeral'"
     printf 'LAST_ACTION=%s\n' "$(ephemeral_shell_quote "${_ephemeral_action}")"
     printf 'UPDATED_AT=%s\n' "$(ephemeral_shell_quote "${_ephemeral_timestamp}")"
+    printf 'PREVIOUS_CORE_HOOKS_PATH_SET=%s\n' "$(ephemeral_shell_quote "${_ephemeral_previous_set}")"
     printf 'PREVIOUS_CORE_HOOKS_PATH=%s\n' "$(ephemeral_shell_quote "${_ephemeral_previous}")"
     printf 'ACTIVE_CORE_HOOKS_PATH=%s\n' "$(ephemeral_shell_quote "${_ephemeral_active}")"
     printf 'MANAGED_HOOKS=%s\n' "$(ephemeral_shell_quote "${_ephemeral_hooks}")"
@@ -153,15 +171,16 @@ ephemeral_set_core_hooks_path() {
 
 ephemeral_restore_previous_hooks_path() {
   _ephemeral_previous=$1
+  _ephemeral_previous_set=$2
   if ephemeral_in_dry_run; then
-    if [ -n "${_ephemeral_previous}" ]; then
+    if [ "${_ephemeral_previous_set}" -eq 1 ]; then
       githooks_log_info "DRY-RUN: restore core.hooksPath -> ${_ephemeral_previous}"
     else
       githooks_log_info 'DRY-RUN: unset core.hooksPath'
     fi
     return 0
   fi
-  if [ -n "${_ephemeral_previous}" ]; then
+  if [ "${_ephemeral_previous_set}" -eq 1 ]; then
     if ! git config --local core.hooksPath "${_ephemeral_previous}"; then
       githooks_die "Failed to restore core.hooksPath to ${_ephemeral_previous}"
     fi
@@ -252,7 +271,7 @@ ephemeral_install_cleanup() {
   fi
   trap - EXIT INT TERM HUP
   if [ "${EPHEMERAL_INSTALL_CONFIG_UPDATED:-0}" -eq 1 ]; then
-    ephemeral_restore_previous_hooks_path "${EPHEMERAL_INSTALL_PREVIOUS_CONFIG:-}"
+    ephemeral_restore_previous_hooks_path "${EPHEMERAL_INSTALL_PREVIOUS_CONFIG:-}" "${EPHEMERAL_INSTALL_PREVIOUS_CONFIG_SET:-0}"
   fi
   if [ "${EPHEMERAL_INSTALL_ROOT_CREATED:-0}" -eq 1 ] && ! ephemeral_in_dry_run; then
     _ephemeral_root=$(ephemeral_root_dir)
@@ -273,18 +292,22 @@ ephemeral_install_common() {
   if [ -n "${_ephemeral_hooks}" ]; then
     _ephemeral_hooks=$(printf '%s' "${_ephemeral_hooks}" | tr '\n' ' ' | sed -e 's/[[:space:]]\+/ /g' -e 's/^ //; s/ $//')
   fi
-  _ephemeral_existing_manifest=0
-  _ephemeral_previous=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
-  if [ -f "$(ephemeral_manifest_path)" ]; then
-    _ephemeral_existing_manifest=1
+  # Rollback restores the configuration immediately before this operation;
+  # uninstall restores the original pre-install snapshot from the manifest.
+  EPHEMERAL_INSTALL_PREVIOUS_CONFIG_SET=0
+  if EPHEMERAL_INSTALL_PREVIOUS_CONFIG=$(ephemeral_current_hooks_path); then
+    EPHEMERAL_INSTALL_PREVIOUS_CONFIG_SET=1
   fi
-  if [ "${_ephemeral_existing_manifest}" -eq 0 ] || [ -z "${_ephemeral_previous}" ]; then
-    _ephemeral_previous=$(ephemeral_current_hooks_path)
+  if [ -f "$(ephemeral_manifest_path)" ]; then
+    _ephemeral_previous=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
+    _ephemeral_previous_set=$(ephemeral_manifest_previous_hooks_path_set "${_ephemeral_previous}") || return 1
+  else
+    _ephemeral_previous=${EPHEMERAL_INSTALL_PREVIOUS_CONFIG}
+    _ephemeral_previous_set=${EPHEMERAL_INSTALL_PREVIOUS_CONFIG_SET}
   fi
   EPHEMERAL_INSTALL_GUARD=1
   EPHEMERAL_INSTALL_CONFIG_UPDATED=0
   EPHEMERAL_INSTALL_ROOT_CREATED=0
-  EPHEMERAL_INSTALL_PREVIOUS_CONFIG=${_ephemeral_previous}
   trap 'ephemeral_install_cleanup' EXIT INT TERM HUP
 
   _ephemeral_root=$(ephemeral_root_dir)
@@ -304,7 +327,7 @@ ephemeral_install_common() {
   ephemeral_set_core_hooks_path "${_ephemeral_target}"
   EPHEMERAL_INSTALL_CONFIG_UPDATED=1
 
-  ephemeral_manifest_write "${_ephemeral_previous}" "${_ephemeral_target}" "${_ephemeral_hook_list}" "${_ephemeral_action}"
+  ephemeral_manifest_write "${_ephemeral_previous}" "${_ephemeral_target}" "${_ephemeral_hook_list}" "${_ephemeral_action}" "${_ephemeral_previous_set}"
 
   EPHEMERAL_INSTALL_GUARD=0
   trap - EXIT INT TERM HUP
@@ -325,7 +348,7 @@ ephemeral_uninstall_cleanup() {
   fi
   trap - EXIT INT TERM HUP
   if [ "${EPHEMERAL_UNINSTALL_CONFIG_SET:-0}" -eq 1 ]; then
-    ephemeral_restore_previous_hooks_path "${EPHEMERAL_UNINSTALL_TARGET_CONFIG:-}"
+    ephemeral_restore_previous_hooks_path "${EPHEMERAL_UNINSTALL_TARGET_CONFIG:-}" "${EPHEMERAL_UNINSTALL_TARGET_CONFIG_SET:-0}"
   fi
   EPHEMERAL_UNINSTALL_GUARD=0
 }
@@ -338,10 +361,16 @@ ephemeral_uninstall() {
     return 0
   fi
   _ephemeral_previous=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
+  _ephemeral_previous_set=$(ephemeral_manifest_previous_hooks_path_set "${_ephemeral_previous}") || return 1
   EPHEMERAL_UNINSTALL_GUARD=1
   EPHEMERAL_UNINSTALL_CONFIG_SET=0
   EPHEMERAL_UNINSTALL_TARGET_CONFIG=${_ephemeral_previous}
+  EPHEMERAL_UNINSTALL_TARGET_CONFIG_SET=${_ephemeral_previous_set}
   trap 'ephemeral_uninstall_cleanup' EXIT INT TERM HUP
+
+  # A locked/unwritable config must not leave Git pointing at removed assets.
+  ephemeral_restore_previous_hooks_path "${_ephemeral_previous}" "${_ephemeral_previous_set}"
+  EPHEMERAL_UNINSTALL_CONFIG_SET=1
 
   if [ -d "${_ephemeral_root}" ]; then
     if ephemeral_in_dry_run; then
@@ -350,13 +379,6 @@ ephemeral_uninstall() {
       rm -rf "${_ephemeral_root}" || githooks_die "Failed to remove ${_ephemeral_root}"
     fi
   fi
-
-  if [ -n "${_ephemeral_previous}" ]; then
-    ephemeral_set_core_hooks_path "${_ephemeral_previous}"
-  else
-    ephemeral_restore_previous_hooks_path ""
-  fi
-  EPHEMERAL_UNINSTALL_CONFIG_SET=1
 
   if [ -f "${_ephemeral_manifest}" ] && ! ephemeral_in_dry_run; then
     rm -f "${_ephemeral_manifest}" 2>/dev/null || true
