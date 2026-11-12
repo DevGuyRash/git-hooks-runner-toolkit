@@ -37,8 +37,60 @@ ephemeral_manifest_path() {
   printf '%s/manifest.sh\n' "$(ephemeral_root_dir)"
 }
 
+# Git's --local config is shared by linked worktrees. Never migrate that
+# shared configuration implicitly, or let --worktree silently fall back to it.
+ephemeral_prepare_config_scope() {
+  _ephemeral_common=$(git rev-parse --git-common-dir) || return 1
+  _ephemeral_common=$(CDPATH='' cd -- "${_ephemeral_common}" && pwd -P) || return 1
+  _ephemeral_git=$(CDPATH='' cd -- "$(githooks_repo_git_dir)" && pwd -P) || return 1
+  _ephemeral_shared=0
+  if [ "${_ephemeral_git}" != "${_ephemeral_common}" ]; then
+    _ephemeral_shared=1
+  else
+    for _ephemeral_worktree in "${_ephemeral_common}"/worktrees/*; do
+      if [ -f "${_ephemeral_worktree}/gitdir" ]; then
+        _ephemeral_shared=1
+        break
+      fi
+    done
+  fi
+  _ephemeral_worktree_config=$(git config --local --bool --get extensions.worktreeConfig 2>/dev/null || true)
+  if [ "${_ephemeral_shared}" -eq 1 ] && [ "${_ephemeral_worktree_config}" != true ]; then
+    githooks_die 'Ephemeral Mode with linked worktrees requires extensions.worktreeConfig=true. Review Git worktree configuration first; no settings were migrated. See docs/ephemeral-mode.md.'
+  fi
+  if [ -f "$(ephemeral_manifest_path)" ]; then
+    EPHEMERAL_CONFIG_SCOPE=$(ephemeral_manifest_get CORE_HOOKS_PATH_SCOPE || printf 'local')
+  elif [ "${_ephemeral_worktree_config}" = true ]; then
+    EPHEMERAL_CONFIG_SCOPE=worktree
+  else
+    EPHEMERAL_CONFIG_SCOPE=local
+  fi
+  case ${EPHEMERAL_CONFIG_SCOPE} in
+    worktree)
+      if [ "${_ephemeral_worktree_config}" != true ]; then
+        githooks_die 'This installation requires extensions.worktreeConfig=true; refusing to write shared config while it is disabled.'
+      fi
+      ;;
+    local)
+      if [ "${_ephemeral_shared}" -eq 1 ]; then
+        githooks_die 'Legacy shared-scope ephemeral installation in a repository with linked worktrees. Recover its original shared hooks configuration before reinstalling; see docs/ephemeral-mode.md.'
+      fi
+      ;;
+    *) githooks_die 'Invalid CORE_HOOKS_PATH_SCOPE in ephemeral manifest' ;;
+  esac
+}
+
+ephemeral_git_config() {
+  git config "--${EPHEMERAL_CONFIG_SCOPE}" "$@"
+}
+
 # Value to store in core.hooksPath for non-bare and bare repositories.
 ephemeral_hooks_config_value() {
+  if [ "${EPHEMERAL_CONFIG_SCOPE}" = worktree ] ||
+    { ! githooks_is_bare_repo && [ ! -d "$(githooks_repo_top)/.git" ]; }; then
+    ephemeral_root_dir
+    return 0
+  fi
   if githooks_is_bare_repo; then
     printf '%s\n' '.githooks'
     return 0
@@ -82,7 +134,7 @@ ephemeral_lib_dir() {
 }
 
 ephemeral_current_hooks_path() {
-  git config --local --get core.hooksPath 2>/dev/null
+  ephemeral_git_config --get core.hooksPath 2>/dev/null
 }
 
 ephemeral_shell_quote() {
@@ -147,6 +199,7 @@ ephemeral_manifest_write() {
     printf 'INSTALL_MODE=%s\n' "'ephemeral'"
     printf 'LAST_ACTION=%s\n' "$(ephemeral_shell_quote "${_ephemeral_action}")"
     printf 'UPDATED_AT=%s\n' "$(ephemeral_shell_quote "${_ephemeral_timestamp}")"
+    printf 'CORE_HOOKS_PATH_SCOPE=%s\n' "$(ephemeral_shell_quote "${EPHEMERAL_CONFIG_SCOPE}")"
     printf 'PREVIOUS_CORE_HOOKS_PATH_SET=%s\n' "$(ephemeral_shell_quote "${_ephemeral_previous_set}")"
     printf 'PREVIOUS_CORE_HOOKS_PATH=%s\n' "$(ephemeral_shell_quote "${_ephemeral_previous}")"
     printf 'ACTIVE_CORE_HOOKS_PATH=%s\n' "$(ephemeral_shell_quote "${_ephemeral_active}")"
@@ -164,7 +217,7 @@ ephemeral_set_core_hooks_path() {
     githooks_log_info "DRY-RUN: set core.hooksPath -> ${_ephemeral_target}"
     return 0
   fi
-  if ! git config --local core.hooksPath "${_ephemeral_target}"; then
+  if ! ephemeral_git_config core.hooksPath "${_ephemeral_target}"; then
     githooks_die "Failed to set core.hooksPath to ${_ephemeral_target}"
   fi
 }
@@ -181,13 +234,13 @@ ephemeral_restore_previous_hooks_path() {
     return 0
   fi
   if [ "${_ephemeral_previous_set}" -eq 1 ]; then
-    if ! git config --local core.hooksPath "${_ephemeral_previous}"; then
+    if ! ephemeral_git_config core.hooksPath "${_ephemeral_previous}"; then
       githooks_die "Failed to restore core.hooksPath to ${_ephemeral_previous}"
     fi
     return 0
   fi
-  if git config --local --get core.hooksPath >/dev/null 2>&1; then
-    git config --local --unset core.hooksPath || githooks_die 'Failed to unset core.hooksPath'
+  if ephemeral_git_config --get core.hooksPath >/dev/null 2>&1; then
+    ephemeral_git_config --unset core.hooksPath || githooks_die 'Failed to unset core.hooksPath'
   fi
 }
 
@@ -281,6 +334,7 @@ ephemeral_install_cleanup() {
 }
 
 ephemeral_install_common() {
+  ephemeral_prepare_config_scope
   _ephemeral_action=$1
   shift
   _ephemeral_hooks=""
@@ -360,6 +414,7 @@ ephemeral_uninstall() {
     githooks_log_info 'Ephemeral Mode not installed; nothing to uninstall'
     return 0
   fi
+  ephemeral_prepare_config_scope
   _ephemeral_previous=$(ephemeral_manifest_get PREVIOUS_CORE_HOOKS_PATH || true)
   _ephemeral_previous_set=$(ephemeral_manifest_previous_hooks_path_set "${_ephemeral_previous}") || return 1
   EPHEMERAL_UNINSTALL_GUARD=1

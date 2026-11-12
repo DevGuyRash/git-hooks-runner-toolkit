@@ -87,11 +87,11 @@ You can set the mode via:
 
 ## Lifecycle & Manifest
 
-On the first install, the toolkit snapshots the repository-local `core.hooksPath`
-value and whether that key was set. Repeated installs and `update --mode ephemeral`
-preserve this original snapshot. Uninstall restores it, including an explicitly
+On the first install, the toolkit snapshots the `core.hooksPath` value and whether
+that key was set in the selected configuration scope. Repeated installs and
+`update --mode ephemeral` preserve this original snapshot. Uninstall restores it, including an explicitly
 empty value. If no local key existed, uninstall removes the toolkit's override so
-Git can use the current global setting or its default hooks directory.
+Git can use the inherited setting or its default hooks directory.
 
 A failed install or update restores the local setting from immediately before that
 operation, rather than prematurely restoring the original uninstall target.
@@ -139,10 +139,47 @@ install.sh uninstall --mode ephemeral --dry-run
 
 ## Compatibility Notes
 
-- Works with **bare repos** and **linked worktrees**; the installer resolves `.git/` indirection correctly.
-- Does **not** modify tracked files; all assets live under `.git/.githooks/` with restrictive permissions.
+- Works with **bare repos**, separate Git directories, and **linked worktrees**
+  configured as described below.
+- Does **not** modify tracked files; assets live in a `.githooks/` directory under
+  the worktree's Git metadata directory, with restrictive permissions.
 - Existing `.githooks/` directories remain untouched and are combined according to your **overlay** setting.
 - Re-running the ephemeral install is **safe**; stubs and manifest are refreshed idempotently.
+
+## Linked worktrees and configuration scope
+
+Ephemeral assets belong to one worktree. When `extensions.worktreeConfig=true` is
+already enabled, new installations use `git config --worktree` and an absolute
+hooks path pointing to that worktree's Git directory. The manifest records
+`CORE_HOOKS_PATH_SCOPE='worktree'`; reinstall, update, rollback and uninstall use
+that same scope. Sibling worktrees keep their own hooks and shared configuration.
+An absent worktree key is restored by removing only that key, exposing the current
+inherited setting. An explicitly empty key remains empty.
+
+Without worktree configuration enabled, the installer refuses lifecycle changes
+in linked worktrees and primary repositories with linked siblings before modifying
+files or configuration. Git's `--local` setting is shared, so changing it could
+silently redirect or disable another worktree's hooks. The toolkit does not enable
+extensions or migrate shared settings. Consult `git help worktree`, under
+CONFIGURATION FILE, before enabling the extension. In particular, shared
+`core.worktree` and `core.bare=true` need Git's documented migration; do not blindly
+flip the extension flag.
+
+Legacy installations without a scope field retain their original `local` scope
+in single-worktree repositories. In repositories with linked worktrees, those
+shared-scope manifests are ambiguous and lifecycle changes are refused. Review
+the saved original path and every worktree's actual hooks configuration, recover
+the known original shared setting and obsolete assets manually, then reinstall
+with worktree configuration prepared. Do not infer a lost original path from the
+currently active toolkit path. Disabling the extension while a worktree-scoped
+installation exists also blocks changes rather than falling back to shared config.
+
+Single-worktree repositories without the extension keep using local configuration.
+Separate Git directories and submodule-style `.git` files use absolute paths;
+ordinary and bare repositories without worktree configuration retain their
+existing relative paths.
+After relocating external Git metadata, refresh the installation to update its
+absolute hooks path.
 
 ## Uninstall
 
@@ -154,8 +191,8 @@ install.sh uninstall --mode ephemeral
 install.sh uninstall --mode ephemeral --dry-run
 ```
 
-The uninstall restores the original local `core.hooksPath` state, then removes
-`.git/.githooks/` and its manifest.
+The uninstall restores the original `core.hooksPath` state in its saved scope,
+then removes its managed `.githooks/` directory and manifest.
 
 ## Troubleshooting
 
