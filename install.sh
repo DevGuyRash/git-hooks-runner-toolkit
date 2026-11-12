@@ -3288,10 +3288,6 @@ cmd_uninstall_ephemeral() {
 
   EPHEMERAL_TARGET_PATH=$(ephemeral_hooks_path_absolute)
 
-  ephemeral_prepare_config_scope
-
-  githooks_config_remove_all
-
   ephemeral_uninstall
 
   if [ -n "${EPHEMERAL_TARGET_PATH}" ]; then

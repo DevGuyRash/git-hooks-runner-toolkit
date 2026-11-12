@@ -96,7 +96,8 @@ Git can use the inherited setting or its default hooks directory.
 A failed install or update restores the local setting from immediately before that
 operation, rather than prematurely restoring the original uninstall target.
 Uninstall restores configuration before deleting assets, so a locked Git config
-leaves the active runner and manifest available for a retry.
+leaves the active runner, support files and manifest available for a retry.
+Uninstall never removes support files from an inherited hooks directory.
 
 Older manifests without `PREVIOUS_CORE_HOOKS_PATH_SET` remain supported: a nonempty
 saved path is restored, and an empty path is treated as unset. They cannot identify

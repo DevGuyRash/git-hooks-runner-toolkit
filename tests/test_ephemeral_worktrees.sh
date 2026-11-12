@@ -156,9 +156,12 @@ for state in absent empty custom; do
     cmp "$base/manifest" "$managed/manifest.sh"
     all_commits active
   done
+  mkdir -p "$managed/config"
+  cp "$ROOT/examples/config/watch-configured-actions.yml" "$managed/config/watch-configured-actions.yml"
   : > "$gitdir/config.worktree.lock"
   for action in update uninstall; do
     if run_installer "$action"; then echo 'Expected locked config failure' >&2; exit 1; fi
+    cmp "$ROOT/examples/config/watch-configured-actions.yml" "$managed/config/watch-configured-actions.yml"
     cmp "$base/manifest" "$managed/manifest.sh"
     all_commits active
   done
@@ -168,6 +171,26 @@ for state in absent empty custom; do
   all_commits "$original"
   printf 'ok - %s scoped publication failure and config-lock retry\n' "$state"
 done
+
+setup inherited-support
+select_target "$a"
+mkdir -p "$base/shared hooks/config"
+cp "$ROOT/examples/config/watch-configured-actions.yml" "$base/shared hooks/config/watch-configured-actions.yml"
+for state in absent empty custom; do
+  git -C "$target" config --worktree --unset core.hooksPath 2>/dev/null || true
+  prior "$state"
+  run_installer uninstall
+  original_config
+  all_commits "$original"
+  cmp "$ROOT/examples/config/watch-configured-actions.yml" "$base/shared hooks/config/watch-configured-actions.yml"
+  activate
+  run_installer uninstall
+  run_installer uninstall
+  original_config
+  all_commits "$original"
+  cmp "$ROOT/examples/config/watch-configured-actions.yml" "$base/shared hooks/config/watch-configured-actions.yml"
+done
+printf 'ok - no-install and repeated uninstall preserve inherited shared support config\n'
 
 for location in main linked; do
   setup "disabled-$location"
