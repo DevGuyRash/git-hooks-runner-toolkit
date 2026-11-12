@@ -118,6 +118,7 @@ printf 'ok - failing hook blocks commit and preserves dispatcher status\n'
 main="$repo"
 repo="${SANDBOX}/linked name"
 git -C "$main" worktree add -qb linked "$repo"
+git -C "$main" config extensions.worktreeConfig true
 (cd "$repo" && "$INSTALLER" install --mode ephemeral --hooks pre-commit)
 gitdir=$(git -C "$repo" rev-parse --absolute-git-dir)
 part "$gitdir/.githooks/parts" pre-commit 10-linked
@@ -125,12 +126,10 @@ part "$repo/.githooks" pre-commit 20-linked
 # Extra roots are shared local config, so clear the prior fixture's failing root.
 git -C "$repo" config --unset-all githooks.ephemeral.extraRoot
 : > "$TRACE"
-# The installer has a separate pre-existing linked-worktree hooksPath issue.
-# Exercise this worktree's installed runner via an explicit per-command path.
-git -C "$repo" -c core.hooksPath="$gitdir/.githooks" commit --allow-empty -qm test
+git -C "$repo" commit --allow-empty -qm test
 expect '10-linked
 20-linked'
-printf 'ok - linked-worktree dispatcher with explicit hooksPath\n'
+printf 'ok - linked-worktree installed dispatcher\n'
 
 # Receive hook stdin remains intact while both roots run in a bare repository.
 bare="${SANDBOX}/bare name.git"
