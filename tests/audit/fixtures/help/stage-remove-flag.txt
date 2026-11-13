@@ -1,0 +1,38 @@
+# command
+githooks stage remove --help
+# status
+0
+# stdout
+NAME
+    githooks stage remove - Delete staged scripts for a specific hook.
+
+SYNOPSIS
+    githooks stage remove HOOK [OPTIONS]
+
+DESCRIPTION
+    Removes staged scripts from .githooks/HOOK.d. Provide a specific name (with
+    or without `.sh`) or use --all to clear the hook entirely.
+
+OPTIONS
+    --name PART | --name=PART | --part PART
+        Remove only the named staged script. The `.sh` suffix is optional.
+
+    --all
+        Remove every staged script for HOOK.
+
+    -n, --dry-run
+        Describe deletions without performing them.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage remove pre-commit git-crypt-enforce
+        Remove the git-crypt enforcement script from the pre-commit hook.
+
+    githooks stage remove post-merge --all --dry-run
+        Preview the scripts that would be removed from post-merge.
+
+SEE ALSO
+    githooks stage add, githooks stage list
+# stderr

@@ -1,0 +1,29 @@
+# command
+githooks hooks --help list
+# status
+0
+# stdout
+NAME
+    githooks hooks list - Summarise managed hooks and staged script counts.
+
+SYNOPSIS
+    githooks hooks list [HOOK]
+
+DESCRIPTION
+    For each managed hook, print whether a stub exists and how many parts are
+    staged. Provide a HOOK to narrow the report to a single entry.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks hooks list
+        Review every managed hook and the number of staged scripts.
+
+    githooks hooks list pre-commit
+        Inspect only the pre-commit hook.
+
+SEE ALSO
+    githooks stage list, githooks install
+# stderr

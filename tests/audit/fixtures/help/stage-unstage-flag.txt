@@ -1,0 +1,43 @@
+# command
+githooks stage unstage --help
+# status
+0
+# stdout
+NAME
+    githooks stage unstage - Remove staged hook parts matching source files.
+
+SYNOPSIS
+    githooks stage unstage SOURCE [OPTIONS]
+
+DESCRIPTION
+    Walks SOURCE (examples, hooks, or a custom directory), detects executable
+    *.sh files, resolves their target hooks from metadata comments or directory
+    placement, and removes any matching staged scripts from .githooks/<hook>.d.
+    Filters restrict removals to specific hooks or filenames.
+
+OPTIONS
+    --hook HOOKS | --hook=HOOKS | --for-hook HOOKS
+        Restrict unstaging to the listed hooks (comma-separated). Scripts whose
+        resolved hook set does not intersect the filter are ignored.
+
+    --name PATTERNS | --name=PATTERNS | --part PATTERNS
+        Accept a comma-separated list of shell globs. A staged script is only
+        removed when its basename, or that basename without a trailing .sh,
+        matches at least one pattern (e.g. `dependency-sync`, `lint-*`).
+
+    -n, --dry-run
+        Emit the unstaging plan without removing files.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage unstage examples --name dependency-sync
+        Remove the dependency-sync example from every hook where it is staged.
+
+    githooks stage unstage hooks --hook pre-commit
+        Remove staged scripts sourced from hooks/ that target pre-commit.
+
+SEE ALSO
+    githooks stage add, githooks stage remove, README section “Managing Staged Parts”
+# stderr

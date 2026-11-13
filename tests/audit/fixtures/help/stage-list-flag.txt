@@ -1,0 +1,30 @@
+# command
+githooks stage list --help
+# status
+0
+# stdout
+NAME
+    githooks stage list - Show staged scripts grouped by hook.
+
+SYNOPSIS
+    githooks stage list [HOOK]
+
+DESCRIPTION
+    Prints a tabular view of hooks and their staged script names. When a HOOK is
+    provided, the output focuses on that hook; otherwise all hooks with staged
+    scripts are displayed. The command emits a header followed by hook/name rows.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage list
+        Show every staged script across the repository.
+
+    githooks stage list prepare-commit-msg
+        Inspect staged scripts for a single hook.
+
+SEE ALSO
+    githooks hooks list, githooks stage add
+# stderr

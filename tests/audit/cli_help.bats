@@ -4,7 +4,7 @@ load '../helpers/assertions.sh'
 
 setup_file() {
   HELP_SNAPSHOT="${BATS_TEST_DIRNAME}/lib/help_snapshot.sh"
-  HELP_FIXTURE_DIR="${BATS_TEST_DIRNAME}/output/help"
+  HELP_FIXTURE_DIR="${BATS_TEST_DIRNAME}/fixtures/help"
   export HELP_SNAPSHOT HELP_FIXTURE_DIR
   if [ ! -f "${HELP_SNAPSHOT}" ]; then
     bats_die "help snapshot script missing: ${HELP_SNAPSHOT}"
@@ -141,6 +141,30 @@ _capture_stdout_section() {
   '
 }
 
+_help_section_names() {
+  awk -v heading="$1" '
+    $0 == heading { section=1; next }
+    section && /^[^[:space:]]/ { exit }
+    section && /^    [A-Za-z0-9-]+([[:space:]]|$)/ { print $1 }
+  '
+}
+
+@test 'help section parsing includes spaced and inline entries' {
+  local manual='NAME
+    ignored
+COMMAND OVERVIEW
+    alpha
+        First command.
+
+    beta    Second command.
+
+SEE ALSO
+    ignored'
+  local names
+  names=$(printf '%s\n' "$manual" | _help_section_names 'COMMAND OVERVIEW')
+  [ "$names" = $'alpha\nbeta' ]
+}
+
 @test 'fixtures exist for each help surface' {
   _list_surfaces
   for line in "${HELP_SURFACE_LINES[@]}"; do
@@ -206,14 +230,8 @@ _capture_stdout_section() {
   local global_stdout
   global_stdout=$(_capture_stdout_section "${output}")
   local commands
-  commands=$(printf '%s\n' "${global_stdout}" | awk '
-    /^COMMAND OVERVIEW$/ { section=1; next }
-    section && /^$/ { exit }
-    section && /^[[:space:]]+[A-Za-z0-9-]+[[:space:]]*$/ {
-      gsub(/^[[:space:]]+/, "")
-      print
-    }
-  ')
+  commands=$(printf '%s\n' "${global_stdout}" | _help_section_names 'COMMAND OVERVIEW')
+  [ -n "${commands}" ] || bats_die 'no commands found in global help'
 
   local missing=()
   local cmd
@@ -244,14 +262,7 @@ EOF
       stage_missing+=("${stage_sub}")
     fi
   done <<EOF
-$(printf '%s\n' "${stage_stdout}" | awk '
-  /^SUBCOMMANDS$/ { section=1; next }
-  section && /^$/ { exit }
-  section && /^[[:space:]]+[A-Za-z0-9-]+[[:space:]]*$/ {
-    gsub(/^[[:space:]]+/, "")
-    print
-  }
-')
+$(printf '%s\n' "${stage_stdout}" | _help_section_names SUBCOMMANDS)
 EOF
   if [ "${#stage_missing[@]}" -ne 0 ]; then
     coverage_errors+=("missing stage coverage for: ${stage_missing[*]}")
@@ -272,14 +283,7 @@ EOF
       hooks_missing+=("${hook_sub}")
     fi
   done <<EOF
-$(printf '%s\n' "${hooks_stdout}" | awk '
-  /^SUBCOMMANDS$/ { section=1; next }
-  section && /^$/ { exit }
-  section && /^[[:space:]]+[A-Za-z0-9-]+[[:space:]]*$/ {
-    gsub(/^[[:space:]]+/, "")
-    print
-  }
-')
+$(printf '%s\n' "${hooks_stdout}" | _help_section_names SUBCOMMANDS)
 EOF
   if [ "${#hooks_missing[@]}" -ne 0 ]; then
     coverage_errors+=("missing hooks coverage for: ${hooks_missing[*]}")
@@ -300,14 +304,7 @@ EOF
       config_missing+=("${config_sub}")
     fi
   done <<EOF
-$(printf '%s\n' "${config_stdout}" | awk '
-  /^SUBCOMMANDS$/ { section=1; next }
-  section && /^$/ { exit }
-  section && /^[[:space:]]+[A-Za-z0-9-]+[[:space:]]*$/ {
-    gsub(/^[[:space:]]+/, "")
-    print
-  }
-')
+$(printf '%s\n' "${config_stdout}" | _help_section_names SUBCOMMANDS)
 EOF
   if [ "${#config_missing[@]}" -ne 0 ]; then
     coverage_errors+=("missing config coverage for: ${config_missing[*]}")

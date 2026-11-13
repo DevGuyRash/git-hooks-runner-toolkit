@@ -1,0 +1,27 @@
+# command
+githooks config help set
+# status
+0
+# stdout
+NAME
+    githooks config set - Update supported configuration keys.
+
+SYNOPSIS
+    githooks config set hooks-path PATH
+
+DESCRIPTION
+    Writes the supplied PATH into Git’s core.hooksPath, pointing Git at the
+    shared runner directory. The command echoes the git config invocation before
+    running it, and respects --dry-run when supplied globally.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks config set hooks-path .githooks
+        Direct Git to use the staged runner directory within the repository.
+
+SEE ALSO
+    githooks config show, git config core.hooksPath
+# stderr

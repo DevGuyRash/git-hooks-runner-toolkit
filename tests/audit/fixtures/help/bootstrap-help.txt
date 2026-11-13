@@ -1,0 +1,42 @@
+# command
+githooks bootstrap help
+# status
+0
+# stdout
+NAME
+    githooks bootstrap - Vendor the toolkit into the repository.
+
+SYNOPSIS
+    githooks bootstrap [OPTIONS]
+
+DESCRIPTION
+    Copies the toolkit files (install.sh, _runner.sh, lib/, examples/, hooks/,
+    tui/, docs/) into `.githooks/` so the repository becomes self-contained.
+    This command only vendors the toolkit. It does not install hook stubs or
+    modify Git configuration; run `githooks install` afterwards to enable
+    hooks.
+
+OPTIONS
+    --force | -f
+        Overwrite an existing `.githooks/` directory. Without this flag the
+        command refuses to replace an existing toolkit checkout.
+
+    -n, --dry-run
+        Print the actions that would be taken without touching the filesystem.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks bootstrap
+        Vendor the toolkit into the current repository.
+
+    githooks --repo /path/to/repo bootstrap --force
+        Replace the toolkit inside another repository.
+
+    githooks bootstrap && .githooks/install.sh install
+        Vendor the toolkit and then install hook stubs/runner assets.
+
+SEE ALSO
+    githooks install, githooks update
+# stderr

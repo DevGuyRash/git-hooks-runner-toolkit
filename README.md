@@ -500,3 +500,25 @@ graph TD
 ```
 
 For a deeper walk‑through, see the dedicated [Ephemeral Mode guide](docs/ephemeral-mode.md).
+
+## Development checks
+
+Run the Bats suites from a clean checkout with Bats installed:
+
+```sh
+bats tests/audit tests/ephemeral tests/helpers
+```
+
+Help expectations are tracked in `tests/audit/fixtures/help/`. Tests compare the
+CLI's output and exit status against these fixtures; they do not regenerate them.
+After an intentional help change, refresh the affected surfaces and review the
+diff before committing:
+
+```sh
+tests/audit/lib/help_snapshot.sh list
+tests/audit/lib/help_snapshot.sh update bootstrap-flag bootstrap-help bootstrap-topic
+git diff -- tests/audit/fixtures/help/
+```
+
+Omit the surface IDs to refresh all fixtures. Generated audit reports remain
+under the ignored `tests/audit/output/` directory.

@@ -1,0 +1,51 @@
+# command
+githooks uninstall --help
+# status
+0
+# stdout
+NAME
+    githooks uninstall - Remove managed stubs and shared runner artefacts.
+
+SYNOPSIS
+    githooks uninstall [OPTIONS]
+
+DESCRIPTION
+    Deletes the shared runner (.githooks/_runner.sh), its library, and any stubs
+    previously installed in .git/hooks by the toolkit. Files not recognised as
+    managed stubs are left untouched to avoid destroying user-managed hooks.
+
+    For Ephemeral Mode, the command removes `.git/.githooks/` assets, restores
+    the prior `core.hooksPath` recorded in the manifest, and deletes the
+    manifest itself while leaving tracked files untouched.
+
+    The uninstall flow consults manifest metadata to restore precedence
+    settings and prior hook roots. Re-run `githooks install --mode ephemeral`
+    after cleanup to reinstate the ephemeral environment.
+
+OPTIONS
+    -n, --dry-run
+        Describe the filesystem removals without executing them.
+
+    --mode MODE
+        Uninstall a specific installation mode. Use `ephemeral` to clean the
+        local .git/.githooks/ assets and restore the prior hooks configuration
+        captured during install.
+
+    -h, --help | help
+        Display this manual entry.
+
+NOTES
+    Pair `--dry-run` with Ephemeral Mode to review manifest-driven removals
+    before touching the filesystem. After cleanup, run `githooks config show`
+    to confirm the restored hooks path and precedence state.
+
+EXAMPLES
+    githooks uninstall --mode ephemeral
+        Remove Ephemeral Mode assets and reinstate the previous hooks path.
+
+    githooks uninstall --dry-run
+        Preview which artefacts would be removed.
+
+SEE ALSO
+    githooks install, githooks stage remove
+# stderr

@@ -8,7 +8,7 @@ PROJECT_ROOT=$(CDPATH='' cd "${SCRIPT_DIR}/../../.." && pwd -P)
 
 REPO_HELPER="${PROJECT_ROOT}/tests/helpers/git_repo.sh"
 CLI_ENTRY="${PROJECT_ROOT}/install.sh"
-FIXTURE_DIR="${PROJECT_ROOT}/tests/audit/output/help"
+FIXTURE_DIR="${PROJECT_ROOT}/tests/audit/fixtures/help"
 
 if [ ! -f "${CLI_ENTRY}" ]; then
   printf '%s\n' "help-snapshot: missing CLI entry at ${CLI_ENTRY}" >&2
@@ -56,10 +56,16 @@ help_snapshot_require_repo() {
 HELP_SNAPSHOT_DATA='global-flag|global-flag|--help
 global-command|global-command|help
 help-help|help-help|help help
+bootstrap-flag|bootstrap-flag|bootstrap --help
+bootstrap-help|bootstrap-help|bootstrap help
+bootstrap-topic|bootstrap-topic|help bootstrap
 install-flag|install-flag|install --help
 install-help|install-help|install help
 install-topic|install-topic|help install
 install-ephemeral-flag|install-ephemeral-flag|install --mode ephemeral --help
+update-flag|update-flag|update --help
+update-help|update-help|update help
+update-topic|update-topic|help update
 stage-flag|stage-flag|stage --help
 stage-command|stage-command|help stage
 stage-help-topic|stage-help-topic|stage help
