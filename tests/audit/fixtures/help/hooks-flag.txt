@@ -1,0 +1,22 @@
+# command
+githooks hooks --help
+# status
+0
+# stdout
+NAME
+    githooks hooks - Inspect stub coverage and staged parts per hook.
+
+SYNOPSIS
+    githooks hooks [SUBCOMMAND]
+
+DESCRIPTION
+    Commands under `hooks` reveal which Git hooks have managed stubs and how
+    many staged scripts each hook currently owns.
+
+SUBCOMMANDS
+    list    Emit a table showing stub status and staged script counts.
+    help    Display this manual or a subcommand-specific manual.
+
+SEE ALSO
+    githooks hooks list help
+# stderr

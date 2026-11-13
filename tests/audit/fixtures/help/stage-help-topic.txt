@@ -1,0 +1,44 @@
+# command
+githooks stage help
+# status
+0
+# stdout
+NAME
+    githooks stage - Stage, remove, or list hook parts sourced from directories.
+
+SYNOPSIS
+    githooks stage [SUBCOMMAND] [ARGS]
+
+DESCRIPTION
+    The stage family copies executable scripts into .githooks/<hook>.d based on
+    metadata comments or directory structure. Use `githooks stage help <topic>`
+    for detailed guidance on each operation.
+
+    Stage is typically run after `githooks install`. Some staged examples also
+    install configuration files under <hooks-root>/config/, which you should
+    edit after staging to match your repository.
+
+SUBCOMMANDS
+    add     Plan and copy scripts from directories into managed hook slots.
+    unstage Reverse stage add by removing staged scripts that match sources.
+    remove  Delete one or all staged scripts for a given hook.
+    list    Display staged scripts, grouped by hook.
+    help    Show this manual or a subcommand-specific manual.
+
+GLOBAL OPTIONS
+    -n, --dry-run
+        Honour dry-run mode across stage subcommands, surfacing planned work.
+
+EXAMPLES
+    githooks stage add examples --hook pre-commit --name 'lint-*'
+        Stage example lint scripts whose filenames match the glob, targeting the
+        pre-commit hook only.
+
+    githooks stage list pre-commit
+        Inspect staged scripts for the pre-commit hook.
+
+SEE ALSO
+    githooks stage add help
+    githooks stage remove help
+    githooks stage list help
+# stderr

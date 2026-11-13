@@ -1,0 +1,22 @@
+# command
+githooks help config show
+# status
+0
+# stdout
+NAME
+    githooks config show - Display hook-related configuration values.
+
+SYNOPSIS
+    githooks config show
+
+DESCRIPTION
+    Echoes Git’s core.hooksPath (if set), plus the resolved shared runner and
+    hooks directories. Helpful when diagnosing custom Git configuration.
+
+OPTIONS
+    -h, --help | help
+        Display this manual entry.
+
+SEE ALSO
+    githooks config set, git config core.hooksPath
+# stderr

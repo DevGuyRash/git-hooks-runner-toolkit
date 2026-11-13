@@ -1,0 +1,58 @@
+# command
+githooks help update
+# status
+0
+# stdout
+NAME
+    githooks update - Refresh managed runner assets and staged hook parts.
+
+SYNOPSIS
+    githooks update [OPTIONS]
+
+DESCRIPTION
+    Reinstalls the toolkit files already present in the repository without
+    altering Git configuration. The command rewrites managed stub dispatchers,
+    copies the latest shared libraries, and updates any staged hook parts whose
+    basenames match entries under `examples/` or `hooks/`. Custom scripts that
+    do not have a matching source are left untouched.
+
+    Use update after pulling a new version of the toolkit or editing files under .githooks/lib/, examples/, or hooks/. It refreshes only managed assets (runner, stubs, and example-based parts), not arbitrary custom scripts.
+
+    When Ephemeral Mode is active, supply `--mode ephemeral` (or rely on the
+    manifest) to refresh the assets stored under `.git/.githooks/`.
+
+OPTIONS
+    --mode MODE
+        Target a specific installation mode. Use `ephemeral` to refresh the
+        manifest-managed installation under `.git/.githooks/`.
+
+    -n, --dry-run
+        Describe the actions that would be taken without modifying files.
+
+    --force | -f
+        Overwrite staged hook parts even when their contents already match the
+        source.
+
+    --refresh-configs
+        Opt-in to refreshing managed configuration files registered with the
+        toolkit (for example, `config/watch-configured-actions.yml`).
+
+    --no-refresh-configs
+        Explicitly disable configuration refresh, even if enabled earlier in
+        the argument list.
+
+    -h, --help | help
+        Display this manual entry.
+
+NOTES
+    The update process preserves user configuration and only touches files
+    previously installed by the toolkit. Staged scripts that lack a matching
+    source remain unchanged.
+
+EXAMPLES
+    githooks update
+        Refresh a standard installation and restage matching example scripts.
+
+    githooks update --mode ephemeral
+        Refresh the Ephemeral Mode installation recorded in `.git/.githooks/`.
+# stderr

@@ -1,0 +1,23 @@
+# command
+githooks help config
+# status
+0
+# stdout
+NAME
+    githooks config - Query or update runner-related Git configuration.
+
+SYNOPSIS
+    githooks config [SUBCOMMAND]
+
+DESCRIPTION
+    Provides helpers for inspecting the repository’s Git configuration values
+    that influence hook execution and for updating the hooks-path setting.
+
+SUBCOMMANDS
+    show    Print resolved hooks-path values and derived toolkit paths.
+    set     Update supported configuration keys (currently hooks-path).
+    help    Display this manual or a subcommand-specific manual.
+
+SEE ALSO
+    githooks config show help, githooks config set help
+# stderr

@@ -1,0 +1,86 @@
+# command
+githooks help
+# status
+0
+# stdout
+NAME
+    githooks - Manage shared Git hook runners and composable hook parts.
+
+SYNOPSIS
+    githooks [GLOBAL OPTIONS] COMMAND [SUBCOMMAND] [ARGS]
+
+DESCRIPTION
+    The toolkit installs a central runner under .githooks/, arranges Git hook
+    stubs to dispatch through it, and provides commands for staging, listing,
+    and removing hook parts. Commands accept --dry-run so you can inspect
+    planned actions before they modify the working tree.
+
+    Ephemeral Mode keeps toolkit assets inside the repository's .git
+    directory, letting you enable hooks without committing toolkit files.
+    Combine it with overlay controls to layer local automation alongside any
+    versioned hook directories. Use it when repository policy forbids tracked
+    tooling: all requirements are met with a writable Git worktree and a
+    POSIX-compliant shell. The companion guide at docs/ephemeral-mode.md covers
+    prerequisites, install steps, precedence rules, and uninstall workflows.
+    Use `githooks install --mode ephemeral --help` for CLI specifics and
+    `githooks uninstall --mode ephemeral --dry-run` to preview manifest-guided
+    cleanup before making changes.
+
+TYPICAL FLOW
+    bootstrap (optional) -> install -> stage add -> configure hook configs -> hooks list (optional) -> update (as needed) -> uninstall (when retiring hooks)
+    For standard installs, commit .githooks/ after you are happy with the setup. For Ephemeral Mode, skip the commit step and edit configs under .git/.githooks/config instead.
+
+GLOBAL OPTIONS
+    -h, --help
+        Show this overview or, when combined with a command, print its manual.
+
+    -V, --version
+        Display the toolkit version banner.
+
+    -n, --dry-run
+        Simulate filesystem changes, echoing the work that would be performed.
+
+    --mode MODE
+        Select installation mode. The default `standard` vendors files into
+        .githooks/. Use `ephemeral` to install under .git/.githooks/ while
+        leaving tracked files untouched; see docs/ephemeral-mode.md for details.
+
+    --repo PATH
+        Run commands against a target repository path instead of the current
+        working directory.
+
+COMMAND OVERVIEW
+    bootstrap
+        Vendor the toolkit into the repository (for self-contained use).
+
+    install
+        Provision the runner, stubs, and default hook directories.
+
+    update
+        Refresh managed runner assets and staged hook parts without altering user configuration.
+
+    stage
+        Add, remove, or list staged hook parts sourced from directories.
+
+    hooks
+        Summarise hook coverage and staged parts across the repository.
+
+    config
+        Inspect Git configuration relevant to the runner, or update hooks-path.
+
+    uninstall
+        Remove managed stubs and shared runner artefacts.
+
+    help
+        Display contextual help for any command or subcommand.
+
+LEGACY COMPATIBILITY
+    init                Alias for install.
+    add                 Alias for stage add.
+    remove              Alias for stage remove.
+
+SEE ALSO
+    githooks help COMMAND
+    githooks COMMAND help
+    githooks COMMAND SUBCOMMAND --help
+# stderr

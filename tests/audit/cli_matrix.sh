@@ -465,6 +465,10 @@ main() {
   run_case root-help-install fresh help install
   run_case root-version fresh --version
 
+  run_case bootstrap-help-flag fresh bootstrap --help
+  run_case bootstrap-help-subcommand fresh bootstrap help
+  run_case bootstrap-help-topic fresh help bootstrap
+
   run_case install-default fresh install
   run_case install-help-flag fresh install --help
   run_case install-help-subcommand fresh install help
@@ -479,6 +483,10 @@ main() {
   run_case install-ephemeral-hooks fresh install --mode ephemeral --hooks pre-commit
   run_case install-ephemeral-flag fresh install --mode ephemeral --help
   run_case install-ephemeral-dry-run fresh install --mode ephemeral --dry-run
+
+  run_case update-help-flag fresh update --help
+  run_case update-help-subcommand fresh update help
+  run_case update-help-topic fresh help update
 
   run_case stage-default fresh stage
   run_case stage-help-flag fresh stage --help

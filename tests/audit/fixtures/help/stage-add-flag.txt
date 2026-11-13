@@ -1,0 +1,48 @@
+# command
+githooks stage add --help
+# status
+0
+# stdout
+NAME
+    githooks stage add - Copy hook parts from a source directory into .githooks.
+
+SYNOPSIS
+    githooks stage add SOURCE [OPTIONS]
+
+DESCRIPTION
+    Walks SOURCE (examples, hooks, or a custom directory), detects executable
+    *.sh files, resolves their target hooks either from `# githooks-stage:`
+    metadata or by directory placement, and copies matching scripts into
+    .githooks/<hook>.d. Destination filenames mirror the source basename, with
+    `.sh` appended automatically when omitted.
+
+OPTIONS
+    --hook HOOKS | --hook=HOOKS | --for-hook HOOKS
+        Restrict staging to the listed hooks (comma-separated). Scripts whose
+        resolved hook set does not intersect the filter are skipped.
+
+    --name PATTERNS | --name=PATTERNS | --part PATTERNS
+        Accept a comma-separated list of shell globs. A script is staged only if
+        its basename, or that basename without a trailing .sh, matches at least
+        one pattern (e.g. `git-crypt-*`, `lint`).
+
+    --force | -f
+        Overwrite existing staged scripts even when contents already match.
+
+    -n, --dry-run
+        Emit the staging plan without copying files.
+
+    -h, --help | help
+        Display this manual entry.
+
+EXAMPLES
+    githooks stage add hooks --hook pre-commit,prepare-commit-msg
+        Stage every executable script beneath hooks/ that targets either listed
+        hook.
+
+    githooks stage add custom-scripts --name 'security-*'
+        Stage only scripts whose basenames begin with `security-`.
+
+SEE ALSO
+    githooks stage remove, githooks stage list, README section “Adding Hook Parts”
+# stderr
