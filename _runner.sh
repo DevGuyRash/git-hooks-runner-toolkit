@@ -75,7 +75,9 @@ trap 'exit 129' HUP
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-cat >"${STDIN_FILE}" || true
+if ! cat >"${STDIN_FILE}"; then
+  githooks_die "unable to capture hook stdin; refusing to run parts with incomplete input"
+fi
 
 export GITHOOKS_HOOK_NAME="${HOOK_NAME}"
 export GITHOOKS_HOOK_PATH="${HOOK_STUB}"
