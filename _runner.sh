@@ -118,8 +118,14 @@ if command -v ephemeral_overlay_resolve_roots >/dev/null 2>&1; then
       RUNNER_ROOT_INDEX=$((RUNNER_ROOT_INDEX + 1))
       githooks_log_info "overlay root [${RUNNER_ROOT_INDEX}]: ${runner_overlay_root}"
       runner_hook_dir="${runner_overlay_root%/}/${HOOK_NAME}.d"
-      if [ ! -d "${runner_hook_dir}" ]; then
-        continue
+      if githooks_probe_parts_dir "${runner_hook_dir}"; then
+        :
+      else
+        runner_probe_status=$?
+        if [ "${runner_probe_status}" -eq 1 ]; then
+          continue
+        fi
+        githooks_die "unable to resolve hook parts; refusing partial dispatch"
       fi
       RUNNER_PART_LIST=$(mktemp "${TMPDIR:-/tmp}/githooks-root-parts.XXXXXX") || exit 1
       if ! githooks_list_directory_parts "${runner_hook_dir}" >"${RUNNER_PART_LIST}"; then
