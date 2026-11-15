@@ -202,8 +202,26 @@ githooks_list_parts() {
   if [ ! -d "${_githooks_list_dir}" ]; then
     return 0
   fi
-  LC_ALL=C find "${_githooks_list_dir}" -mindepth 1 -maxdepth 1 -type f -name '*.sh' -perm -u+x -print 2>/dev/null | LC_ALL=C sort
+  githooks_list_directory_parts "${_githooks_list_dir}"
 }
+
+# Keep find separate from sort: POSIX pipelines otherwise hide find failures.
+# A subshell isolates cleanup traps from the caller (including the runner).
+githooks_list_directory_parts() (
+  _githooks_scan_file=$(mktemp "${TMPDIR:-/tmp}/githooks-scan.XXXXXX") || exit 1
+  trap 'rm -f "${_githooks_scan_file}"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 143' TERM
+  if ! LC_ALL=C find "$1" -mindepth 1 -maxdepth 1 -type f -name '*.sh' -perm -u+x -print >"${_githooks_scan_file}"; then
+    githooks_log_error "unable to enumerate hook parts in $1"
+    exit 1
+  fi
+  if ! LC_ALL=C sort "${_githooks_scan_file}"; then
+    githooks_log_error "unable to sort hook parts in $1"
+    exit 1
+  fi
+)
 
 githooks_require_readable_parts() {
   if [ "$#" -ne 1 ]; then

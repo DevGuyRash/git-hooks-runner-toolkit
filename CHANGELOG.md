@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Fixed
+- Reject failed hook-part enumeration or sorting instead of silently skipping
+  hooks or dispatching a partial list. Optional absent directories remain valid.
 - Preserve the original local `core.hooksPath` value and presence across repeated
   ephemeral installs and updates, so uninstall restores default, inherited, custom,
   and explicitly empty configurations correctly.

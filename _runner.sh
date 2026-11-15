@@ -122,7 +122,9 @@ if command -v ephemeral_overlay_resolve_roots >/dev/null 2>&1; then
         continue
       fi
       RUNNER_PART_LIST=$(mktemp "${TMPDIR:-/tmp}/githooks-root-parts.XXXXXX") || exit 1
-      LC_ALL=C find "${runner_hook_dir}" -mindepth 1 -maxdepth 1 -type f -name '*.sh' -perm -u+x -print 2>/dev/null | LC_ALL=C sort >"${RUNNER_PART_LIST}"
+      if ! githooks_list_directory_parts "${runner_hook_dir}" >"${RUNNER_PART_LIST}"; then
+        githooks_die "unable to enumerate hook parts; refusing partial dispatch"
+      fi
       while IFS= read -r runner_part_candidate; do
         [ -n "${runner_part_candidate}" ] || continue
         runner_record_part "${runner_overlay_root}" "${runner_part_candidate}"
@@ -136,7 +138,9 @@ fi
 if [ "${RUNNER_USING_OVERLAY}" -eq 0 ]; then
   RUNNER_DEFAULT_ROOT=$(githooks_shared_root)
   RUNNER_PART_LIST=$(mktemp "${TMPDIR:-/tmp}/githooks-default-parts.XXXXXX") || exit 1
-  githooks_list_parts "${HOOK_NAME}" >"${RUNNER_PART_LIST}"
+  if ! githooks_list_parts "${HOOK_NAME}" >"${RUNNER_PART_LIST}"; then
+    githooks_die "unable to enumerate hook parts; refusing partial dispatch"
+  fi
   while IFS= read -r runner_part_path; do
     [ -n "${runner_part_path}" ] || continue
     runner_record_part "${RUNNER_DEFAULT_ROOT}" "${runner_part_path}"
