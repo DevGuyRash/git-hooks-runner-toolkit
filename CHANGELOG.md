@@ -3,6 +3,9 @@
 ## [Unreleased]
 
 ### Fixed
+- Distinguish absent optional hook directories from inaccessible ancestors,
+  dangling links, and non-directory paths before dispatch. Follow hook-directory
+  symlinks without following symlinked child parts.
 - Reject failed hook-part enumeration or sorting instead of silently skipping
   hooks or dispatching a partial list. Optional absent directories remain valid.
 - Preserve the original local `core.hooksPath` value and presence across repeated

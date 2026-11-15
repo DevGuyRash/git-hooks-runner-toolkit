@@ -199,11 +199,44 @@ githooks_list_parts() {
   fi
   _githooks_list_hook=$1
   _githooks_list_dir=$(githooks_parts_dir "${_githooks_list_hook}")
-  if [ ! -d "${_githooks_list_dir}" ]; then
-    return 0
+  if githooks_probe_parts_dir "${_githooks_list_dir}"; then
+    :
+  else
+    _githooks_probe_status=$?
+    [ "${_githooks_probe_status}" -eq 1 ] && return 0
+    return 1
   fi
   githooks_list_directory_parts "${_githooks_list_dir}"
 }
+
+# 0: searchable directory; 1: genuinely missing under a searchable ancestor;
+# 2: inaccessible or invalid path. Do not normalize .. across symlinks.
+# Walk upward only after failed existence checks; a hidden descendant must not
+# be mistaken for an optional missing directory. Kernel path resolution keeps
+# symlinks and .. semantics intact. This is not an atomic filesystem snapshot.
+githooks_probe_parts_dir() (
+  _githooks_probe_path=$1
+  while :; do
+    if [ -d "${_githooks_probe_path}" ]; then
+      if [ ! -x "${_githooks_probe_path}" ]; then
+        githooks_log_error "hook directory ancestor is not searchable: ${_githooks_probe_path}"
+        exit 2
+      fi
+      [ "${_githooks_probe_path}" = "$1" ] && exit 0
+      exit 1
+    fi
+    if [ -e "${_githooks_probe_path}" ] || [ -L "${_githooks_probe_path}" ]; then
+      githooks_log_error "hook directory path is not a usable directory: ${_githooks_probe_path}"
+      exit 2
+    fi
+    _githooks_probe_parent=$(dirname "${_githooks_probe_path}") || exit 2
+    if [ "${_githooks_probe_parent}" = "${_githooks_probe_path}" ]; then
+      githooks_log_error "unable to resolve hook directory: $1"
+      exit 2
+    fi
+    _githooks_probe_path=${_githooks_probe_parent}
+  done
+)
 
 # Keep find separate from sort: POSIX pipelines otherwise hide find failures.
 # A subshell isolates cleanup traps from the caller (including the runner).
@@ -213,7 +246,7 @@ githooks_list_directory_parts() (
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 143' TERM
-  if ! LC_ALL=C find "$1" -mindepth 1 -maxdepth 1 -type f -name '*.sh' -perm -u+x -print >"${_githooks_scan_file}"; then
+  if ! LC_ALL=C find -H "$1" -mindepth 1 -maxdepth 1 -type f -name '*.sh' -perm -u+x -print >"${_githooks_scan_file}"; then
     githooks_log_error "unable to enumerate hook parts in $1"
     exit 1
   fi
